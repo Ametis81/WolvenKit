@@ -20,6 +20,7 @@ using WolvenKit.App;
 using WolvenKit.App.Helpers;
 using WolvenKit.App.Interaction;
 using WolvenKit.App.Services;
+using WolvenKit.App.Services.Themes;
 using WolvenKit.Common.Services;
 using WolvenKit.Core.Compression;
 using WolvenKit.Core.Exceptions;
@@ -37,6 +38,7 @@ namespace WolvenKit
 
         private ISettingsManager _settingsManager;
         private ILoggerService _loggerService;
+        private IThemeService _themeService;
 
         // Constructor #1
         static AppImpl()
@@ -70,11 +72,23 @@ namespace WolvenKit
             _loggerService.Info("Starting application");
             _loggerService.Info($"Version: {_settingsManager.GetVersionNumber()}");
 
+            // Apply the WolvenKit color theme before any window is created:
+            // views resolve StaticResource colors when they are loaded.
+            _themeService = Locator.Current.GetService<IThemeService>();
+            try
+            {
+                _themeService.Initialize();
+            }
+            catch (Exception ex)
+            {
+                _loggerService.Error($"Exception while loading color themes: {ex.Message}");
+            }
+
             // Register themes before loading any UI to avoid exceptions.
             try
             {
                 _loggerService.Info("Registering themes...");
-                var themeSettings = BuildTheme(_settingsManager);
+                var themeSettings = BuildTheme(_settingsManager, _themeService);
                 SfSkinManager.RegisterThemeSettings("MaterialDark", themeSettings);
                 SfSkinManager.ApplyStylesOnApplication = true;
                 _loggerService.Info("Themes registered successfully.");
@@ -113,6 +127,12 @@ namespace WolvenKit
                 .WhenPropertyChanged(settings => settings.UiScale)
                 .Skip(1)
                 .Subscribe(_ => OnUiScaleChanged());
+
+            _themeService.CurrentThemeChanged += (_, _) => OnThemeChanged();
+
+            // SfSkinManager may merge its own brush dictionaries when the main window gets its theme;
+            // keep the WolvenKit theme overrides on top of them.
+            Activated += OnFirstActivated;
 
             StartDeferredServiceLoad();
 
@@ -214,11 +234,20 @@ namespace WolvenKit
             }
         }
 
-        private static IThemeSetting BuildTheme(ISettingsManager settingsManager)
+        private void OnFirstActivated(object sender, EventArgs e)
         {
-            return new MaterialDarkThemeSettings
+            Activated -= OnFirstActivated;
+            _themeService.EnsureResourcesOnTop();
+        }
+
+        private static IThemeSetting BuildTheme(ISettingsManager settingsManager, IThemeService themeService)
+        {
+            var theme = themeService.Current;
+            var accentForeground = themeService.ResolveAccentForeground(theme);
+
+            var settings = new MaterialDarkThemeSettings
             {
-                PrimaryBackground = new SolidColorBrush(settingsManager.GetThemeAccent()),
+                PrimaryBackground = new SolidColorBrush(themeService.ResolveAccent(theme)),
                 BodyFontSize = 11 * settingsManager.UiScalePercentage,
                 HeaderFontSize = 14 * settingsManager.UiScalePercentage,
                 SubHeaderFontSize = 13 * settingsManager.UiScalePercentage,
@@ -227,21 +256,29 @@ namespace WolvenKit
                 BodyAltFontSize = 11 * settingsManager.UiScalePercentage,
                 FontFamily = new FontFamily("Segoe UI")
             };
+
+            if (accentForeground is { } foreground)
+            {
+                settings.PrimaryForeground = new SolidColorBrush(foreground);
+            }
+
+            return settings;
         }
 
         // NOTE: used for debug environment
-        public static void UpdateTheme(ISettingsManager settingsManager)
+        public static void UpdateTheme(ISettingsManager settingsManager, IThemeService themeService)
         {
             var window = Application.Current.MainWindow;
             // NOTE: trick SfSkinManager to unregister current ThemeSettings.
             var theme = SfSkinManager.GetTheme(window);
 
             theme.ThemeName = "";
-            var themeSettings = BuildTheme(settingsManager);
+            var themeSettings = BuildTheme(settingsManager, themeService);
 
             SfSkinManager.RegisterThemeSettings("MaterialDark", themeSettings);
             SfSkinManager.ApplyStylesOnApplication = true;
             SfSkinManager.SetTheme(window, new Theme("MaterialDark"));
+            themeService.EnsureResourcesOnTop();
             window.InvalidateVisual();
             window.UpdateLayout();
             window.Visibility = Visibility.Collapsed;
@@ -264,11 +301,32 @@ namespace WolvenKit
 #if DEBUG
                 // NOTE: Allow dynamic scaling to speed-up workflow when working on UI.
                 //       You might need to restart manually in some cases.
-                UpdateTheme(_settingsManager);
+                UpdateTheme(_settingsManager, _themeService);
                 await Task.CompletedTask;
 #else
                 await Interactions.ShowMessageBoxAsync("WolvenKit will restart to apply UI changes.", "Restart to scale UI", WMessageBoxButtons.Ok);
                 ProcessHelper.Restart(Current);
+#endif
+            });
+        }
+
+        private void OnThemeChanged()
+        {
+            DispatcherHelper.RunOnMainThread(async () =>
+            {
+#if DEBUG
+                // NOTE: same trick as for UI scale; only DynamicResource colors and the accent update live.
+                UpdateTheme(_settingsManager, _themeService);
+                await Task.CompletedTask;
+#else
+                var result = await Interactions.ShowMessageBoxAsync(
+                    $"Theme \"{_themeService.Current.Name}\" is selected. Some colors are only updated after a restart.\n\nRestart WolvenKit now?",
+                    "Restart to apply theme",
+                    WMessageBoxButtons.YesNo);
+                if (result == WMessageBoxResult.Yes)
+                {
+                    ProcessHelper.Restart(Current);
+                }
 #endif
             });
         }
