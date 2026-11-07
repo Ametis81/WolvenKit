@@ -16,10 +16,7 @@
       "key": "ContentBackgroundAlt2",
       "group": "Surfaces",
       "displayName": "Content Background Alt2",
-      "kind": "Brush",
-      "derivedBrushes": [
-        "BackgroundBrush_InputField"
-      ]
+      "kind": "Brush"
     },
     {
       "key": "ContentBackgroundAlt3",
@@ -97,10 +94,7 @@
       "key": "BackgroundColor_InputField_Readonly",
       "group": "Backgrounds",
       "displayName": "Background Color Input Field Readonly",
-      "kind": "Color",
-      "derivedBrushes": [
-        "BackgroundBrush_InputField_Readonly"
-      ]
+      "kind": "Color"
     },
     {
       "key": "BackgroundColor_Control",

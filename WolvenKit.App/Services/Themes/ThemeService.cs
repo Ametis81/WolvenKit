@@ -128,7 +128,19 @@ public sealed class ThemeService : IThemeService
 
         foreach (var key in keys)
         {
-            switch (app.TryFindResource(key))
+            object? resource;
+            try
+            {
+                resource = app.TryFindResource(key);
+            }
+            catch (Exception ex)
+            {
+                // A broken resource in a dictionary (e.g. a Brush assigned to a Color) throws on first use.
+                _loggerService.Debug($"Themes: resource {key} can't be created and is not themeable: {ex.Message}");
+                continue;
+            }
+
+            switch (resource)
             {
                 case Color color:
                     _defaults[key] = color;

@@ -35,7 +35,10 @@ SYNCFUSION_KEYS = [
 
 COLOR_RE = re.compile(r'<Color\s+x:Key="([^"]+)"\s*>([^<]+)</Color>')
 BRUSH_RE = re.compile(r'<SolidColorBrush\s+x:Key="([^"]+)"\s+Color="([^"]+)"\s*/>')
-REF_RE = re.compile(r'\{(?:Static|Dynamic)Resource\s+([^}\s]+)\s*\}')
+# Only StaticResource bakes the color in. Brushes using DynamicResource follow their source by themselves
+# (and BackgroundBrush_InputField even points a Color at a Brush, which throws when it is instantiated).
+REF_RE = re.compile(r'\{StaticResource\s+([^}\s]+)\s*\}')
+DYNAMIC_REF_RE = re.compile(r'\{DynamicResource\s+[^}\s]+\s*\}')
 
 
 def group_of(key: str) -> str:
@@ -78,6 +81,8 @@ def main() -> int:
         ref = REF_RE.fullmatch(color.strip())
         if ref:
             derived.setdefault(ref.group(1), []).append(key)
+            continue
+        if DYNAMIC_REF_RE.fullmatch(color.strip()):
             continue
         if color.strip().lower() == "transparent":
             continue
