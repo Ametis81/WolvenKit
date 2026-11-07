@@ -39,8 +39,9 @@ namespace WolvenKit
         private ISettingsManager _settingsManager;
         private ILoggerService _loggerService;
         private IThemeService _themeService;
-        private System.Windows.Media.Color _registeredAccent;
-        private System.Windows.Media.Color? _registeredAccentForeground;
+        // Accent registered in MaterialDarkThemeSettings (changing it needs a restart)
+        private static System.Windows.Media.Color s_registeredAccent;
+        private static System.Windows.Media.Color? s_registeredAccentForeground;
 
         // Constructor #1
         static AppImpl()
@@ -246,11 +247,8 @@ namespace WolvenKit
         {
             var theme = themeService.Current;
             var accentForeground = themeService.ResolveAccentForeground(theme);
-            if (Current is App app)
-            {
-                app._registeredAccent = themeService.ResolveAccent(theme);
-                app._registeredAccentForeground = accentForeground;
-            }
+            s_registeredAccent = themeService.ResolveAccent(theme);
+            s_registeredAccentForeground = accentForeground;
 
             var settings = new MaterialDarkThemeSettings
             {
@@ -322,8 +320,8 @@ namespace WolvenKit
             // Brushes are recolored live by the theme service. Only the Syncfusion accent comes from
             // MaterialDarkThemeSettings, which is read when the theme is registered.
             var theme = _themeService.Current;
-            if (_themeService.ResolveAccent(theme) == _registeredAccent
-                && _themeService.ResolveAccentForeground(theme) == _registeredAccentForeground)
+            if (_themeService.ResolveAccent(theme) == s_registeredAccent
+                && _themeService.ResolveAccentForeground(theme) == s_registeredAccentForeground)
             {
                 return;
             }
