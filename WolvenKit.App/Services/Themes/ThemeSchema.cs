@@ -44,6 +44,17 @@ public sealed class ThemeSchema
 
     private Dictionary<string, ThemeSchemaEntry>? _byKey;
 
+    /// <summary>Adds a key discovered at runtime (e.g. Syncfusion theme brushes).</summary>
+    public void AddEntry(ThemeSchemaEntry entry)
+    {
+        if (Find(entry.Key) is not null)
+        {
+            return;
+        }
+        Entries.Add(entry);
+        _byKey![entry.Key] = entry;
+    }
+
     public ThemeSchemaEntry? Find(string key)
     {
         _byKey ??= Entries.ToDictionary(e => e.Key, StringComparer.Ordinal);

@@ -312,7 +312,7 @@ public partial class SettingsManager : ObservableObject, ISettingsManager
     [property: System.ComponentModel.Browsable(false)]
     private string? _themeAccentString;
 
-    [Display(Name = "Theme", Description = "Color theme of the interface. Most changes are applied after a restart.", GroupName = "General")]
+    [Display(Name = "Theme", Description = "Color theme of the interface. Colors change immediately; a different accent color needs a restart.", GroupName = "General")]
     [ObservableProperty]
     private string? _activeTheme;
 

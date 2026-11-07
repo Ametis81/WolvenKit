@@ -11,7 +11,7 @@ using WolvenKit.Core.Interfaces;
 namespace WolvenKit.App.Services.Themes;
 
 /// <inheritdoc />
-public sealed class ThemeService : IThemeService
+public sealed partial class ThemeService : IThemeService
 {
     private const string BuiltInResourcePrefix = "WolvenKit.App.Resources.Themes.Builtin.";
     private const string MigratedThemeName = "Custom (migrated accent)";
@@ -94,6 +94,7 @@ public sealed class ThemeService : IThemeService
         }
 
         CaptureDefaults();
+        InitializeLivePatching();
         LoadBuiltInThemes();
         LoadUserThemes();
         MigrateLegacyAccent();
@@ -338,10 +339,18 @@ public sealed class ThemeService : IThemeService
 
         foreach (var (key, color) in palette)
         {
-            AddResource(dictionary, key, color);
+            // In the app dictionary, skip brushes that are recolored in place: a new frozen brush under the same
+            // key would be picked up by views loaded later and could not follow the next theme switch.
+            if (complete || !IsLiveOnly(key))
+            {
+                AddResource(dictionary, key, color);
+            }
             foreach (var derived in Schema.Find(key)?.DerivedBrushes ?? [])
             {
-                AddResource(dictionary, derived, color);
+                if (complete || !IsLiveOnly(derived))
+                {
+                    AddResource(dictionary, derived, color);
+                }
             }
         }
 
@@ -350,7 +359,10 @@ public sealed class ThemeService : IThemeService
         {
             foreach (var (key, alpha) in s_mahAppsAccentKeys)
             {
-                AddResource(dictionary, key, Color.FromArgb(alpha, accent.R, accent.G, accent.B));
+                if (complete || !IsLiveOnly(key))
+                {
+                    AddResource(dictionary, key, Color.FromArgb(alpha, accent.R, accent.G, accent.B));
+                }
             }
         }
 
@@ -385,6 +397,11 @@ public sealed class ThemeService : IThemeService
             return;
         }
 
+        // 1) recolor brush instances that are already in use (live, also for StaticResource consumers)
+        ScanAll();
+        PatchLiveBrushes(theme);
+
+        // 2) dictionary on top for Color resources and brushes that only exist frozen
         var dictionary = CreateResourceDictionary(theme);
         var merged = app.Resources.MergedDictionaries;
 

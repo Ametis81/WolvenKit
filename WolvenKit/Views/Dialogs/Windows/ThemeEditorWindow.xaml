@@ -137,7 +137,7 @@
                     VerticalAlignment="Center"
                     Content="Preview in the whole app"
                     IsChecked="{Binding PreviewInApp}"
-                    ToolTip="Applies the palette to the running app while you edit. Elements that use StaticResource update only after a restart." />
+                    ToolTip="Recolors the running app while you edit. Closing without saving restores the current theme." />
             </StackPanel>
         </Grid>
 
@@ -150,7 +150,7 @@
             BorderBrush="{StaticResource BorderAlt}"
             BorderThickness="1">
             <TextBlock TextWrapping="Wrap">
-                <Run Text="Unchanged colors follow the base theme. Most colors become visible in the whole app after a restart; the preview on the right updates live." />
+                <Run Text="Unchanged colors follow the base theme. With &quot;Preview in the whole app&quot; the running app is recolored while you edit; the accent color needs a restart." />
                 <Run Text=" " />
                 <Run Foreground="{StaticResource WolvenKitYellow}" Text="{Binding OverriddenCount, Mode=OneWay, StringFormat='{}{0} color(s) changed.'}" />
             </TextBlock>

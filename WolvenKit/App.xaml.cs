@@ -39,6 +39,8 @@ namespace WolvenKit
         private ISettingsManager _settingsManager;
         private ILoggerService _loggerService;
         private IThemeService _themeService;
+        private System.Windows.Media.Color _registeredAccent;
+        private System.Windows.Media.Color? _registeredAccentForeground;
 
         // Constructor #1
         static AppImpl()
@@ -244,6 +246,11 @@ namespace WolvenKit
         {
             var theme = themeService.Current;
             var accentForeground = themeService.ResolveAccentForeground(theme);
+            if (Current is App app)
+            {
+                app._registeredAccent = themeService.ResolveAccent(theme);
+                app._registeredAccentForeground = accentForeground;
+            }
 
             var settings = new MaterialDarkThemeSettings
             {
@@ -312,16 +319,24 @@ namespace WolvenKit
 
         private void OnThemeChanged()
         {
+            // Brushes are recolored live by the theme service. Only the Syncfusion accent comes from
+            // MaterialDarkThemeSettings, which is read when the theme is registered.
+            var theme = _themeService.Current;
+            if (_themeService.ResolveAccent(theme) == _registeredAccent
+                && _themeService.ResolveAccentForeground(theme) == _registeredAccentForeground)
+            {
+                return;
+            }
+
             DispatcherHelper.RunOnMainThread(async () =>
             {
 #if DEBUG
-                // NOTE: same trick as for UI scale; only DynamicResource colors and the accent update live.
                 UpdateTheme(_settingsManager, _themeService);
                 await Task.CompletedTask;
 #else
                 var result = await Interactions.ShowMessageBoxAsync(
-                    $"Theme \"{_themeService.Current.Name}\" is selected. Some colors are only updated after a restart.\n\nRestart WolvenKit now?",
-                    "Restart to apply theme",
+                    $"Theme \"{theme.Name}\" uses a different accent color, which is applied after a restart.\n\nRestart WolvenKit now?",
+                    "Restart to apply accent",
                     WMessageBoxButtons.YesNo);
                 if (result == WMessageBoxResult.Yes)
                 {

@@ -9,8 +9,9 @@ namespace WolvenKit.App.Services.Themes;
 /// <summary>
 /// Lists, applies and persists WolvenKit themes.
 /// <para>
-/// Stage 1 limitation: most views use <c>StaticResource</c>, so a new theme is fully visible only
-/// after a restart. Resources referenced with <c>DynamicResource</c> update immediately.
+/// Brushes that are already in use are recolored in place (works for StaticResource consumers too).
+/// Color resources and frozen brushes are overridden by a dictionary on top of the application resources,
+/// which reaches DynamicResource consumers and views loaded later.
 /// </para>
 /// </summary>
 public interface IThemeService
