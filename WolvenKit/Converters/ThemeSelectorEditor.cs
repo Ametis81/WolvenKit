@@ -98,7 +98,7 @@ namespace WolvenKit.Converters
 
         private void RefreshItems()
         {
-            _comboBox.ItemsSource = _themeService.Themes
+            var items = _themeService.Themes
                 .Select(t => new ComboBoxItem
                 {
                     Content = t.IsBuiltIn ? $"{t.Name}  (built-in)" : t.Name,
@@ -106,7 +106,8 @@ namespace WolvenKit.Converters
                     ToolTip = string.IsNullOrEmpty(t.Description) ? null : t.Description
                 })
                 .ToList();
-            _comboBox.SelectedValuePath = nameof(ComboBoxItem.Tag);
+            _comboBox.SetCurrentValue(Selector.SelectedValuePathProperty, nameof(ComboBoxItem.Tag));
+            _comboBox.SetCurrentValue(ItemsControl.ItemsSourceProperty, items);
         }
 
         private void UpdateButtons() =>

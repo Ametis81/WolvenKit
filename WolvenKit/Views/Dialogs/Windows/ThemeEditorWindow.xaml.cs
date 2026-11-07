@@ -31,7 +31,7 @@ namespace WolvenKit.Views.Dialogs.Windows
             DataContext = _viewModel;
 
             _entriesView = (CollectionViewSource)Resources["EntriesView"];
-            _entriesView.Source = _viewModel.Entries;
+            _entriesView.SetCurrentValue(CollectionViewSource.SourceProperty, _viewModel.Entries);
             _entriesView.Filter += (_, e) => e.Accepted = e.Item is ThemeColorEntryViewModel entry && _viewModel.Matches(entry);
 
             // Rebuilding the preview dictionary for every color-picker tick is wasteful; debounce it.
