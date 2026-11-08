@@ -1,0 +1,27 @@
+{
+  "formatVersion": 1,
+  "name": "Hound",
+  "author": "WolvenKit",
+  "description": "For Hound: charcoal fur, cream highlights, lime green and honey orange accents.",
+  "basedOn": "WolvenKit Dark",
+  "accent": "#B9D85A",
+  "accentForeground": "#1A2108",
+  "colors": {
+    "ContentBackground": "#121311",
+    "ContentBackgroundAlt": "#161714",
+    "ContentBackgroundAlt2": "#1B1C18",
+    "ContentBackgroundAlt3": "#21231E",
+    "ContentBackgroundAlt4": "#292B25",
+    "ContentBackgroundAlt5": "#33362E",
+    "BorderAlt": "#3B3F33",
+    "ContentForeground": "#EEF2DE",
+    "ForegroundColor": "#EEF2DE",
+    "BackgroundColor_Control": "#1B1C18",
+    "BackgroundColor_Frame_Active": "#21231E",
+    "BackgroundColor_Frame_Background": "#161714",
+    "WolvenKitProjectSource": "#B9D85A",
+    "WolvenKitProjectSourceShadow": "#5E6E2C",
+    "WolvenKitProjectResources": "#DEA854",
+    "WolvenKitProjectResourcesShadow": "#7A5A2A"
+  }
+}
