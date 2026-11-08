@@ -1,0 +1,6 @@
+changes:
+    - type: "fixed"
+      packages: ["App"]
+      pr-number: 3253
+      author: "Ametis81"
+      description: "Welcome page: the project lists no longer disappear after switching the theme."
