@@ -1,8 +1,8 @@
 {
   "formatVersion": 1,
-  "name": "Hound",
+  "name": "Dogtown Hound",
   "author": "WolvenKit",
-  "description": "For Hound: charcoal fur, cream highlights, lime green and honey orange accents.",
+  "description": "Dogtown Hound: charcoal fur, cream highlights, lime green and honey orange accents.",
   "basedOn": "WolvenKit Dark",
   "accent": "#B9D85A",
   "accentForeground": "#1A2108",
