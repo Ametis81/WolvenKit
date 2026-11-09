@@ -25,7 +25,8 @@
       "key": "WolvenKitAccentShadowForeground",
       "group": "Accent",
       "displayName": "Accent Shadow Foreground",
-      "kind": "Brush"
+      "kind": "Brush",
+      "description": "Text on hovered tabs (on the accent shadow color)"
     },
     {
       "key": "WolvenKitStatusBarReady",
@@ -115,7 +116,8 @@
       "key": "WolvenKitPanelHeaderSelectedForeground",
       "group": "Panels",
       "displayName": "Panel Header Selected Foreground",
-      "kind": "Brush"
+      "kind": "Brush",
+      "description": "Text on the active panel header"
     },
     {
       "key": "WolvenKitPanelTabSelected",
