@@ -43,10 +43,11 @@
                     BorderBrush="{TemplateBinding BorderBrush}"
                     BorderThickness="{TemplateBinding BorderThickness}">
                     <TextBlock
+                        x:Name="TabText"
                         Margin="{DynamicResource WolvenKitMarginTinyHorizontal}"
                         HorizontalAlignment="Center"
                         VerticalAlignment="Center"
-                        Foreground="{Binding Background, ElementName=TabBorder, Converter={StaticResource ContrastForegroundConverter}}"
+                        Foreground="{DynamicResource ContentForeground}"
                         Text="{TemplateBinding Header}" />
                 </Border>
 
@@ -57,6 +58,7 @@
                     <Trigger Property="IsSelected" Value="True">
                         <Setter TargetName="TabBorder" Property="Background" Value="{DynamicResource WolvenKitProjectSource}" />
                         <Setter TargetName="TabBorder" Property="BorderBrush" Value="{DynamicResource WolvenKitProjectSource}" />
+                        <Setter TargetName="TabText" Property="Foreground" Value="{Binding Background, ElementName=TabBorder, Converter={StaticResource ContrastForegroundConverter}}" />
                     </Trigger>
                     <!--  hover: the darker source color, like the unselected SOURCE tab  -->
                     <MultiTrigger>
