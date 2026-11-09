@@ -616,14 +616,17 @@ namespace WolvenKit
                 var child = System.Windows.Media.VisualTreeHelper.GetChild(parent, i);
                 if (child is Syncfusion.Windows.Tools.Controls.TabItemExt tabItem)
                 {
-                    // Force background and foreground from the current theme resources
-                    if (Application.Current?.TryFindResource("ContentBackground") is System.Windows.Media.Brush bg)
+                    // Only force colors on unselected tabs; selected keeps the accent from the TabControl style
+                    if (!tabItem.IsSelected)
                     {
-                        tabItem.Background = bg;
-                    }
-                    if (Application.Current?.TryFindResource("ContentForeground") is System.Windows.Media.Brush fg)
-                    {
-                        tabItem.Foreground = fg;
+                        if (Application.Current?.TryFindResource("ContentBackground") is System.Windows.Media.Brush bg)
+                        {
+                            tabItem.Background = bg;
+                        }
+                        if (Application.Current?.TryFindResource("ContentForeground") is System.Windows.Media.Brush fg)
+                        {
+                            tabItem.Foreground = fg;
+                        }
                     }
                     var style = tabItem.Style;
                     tabItem.Style = null;
