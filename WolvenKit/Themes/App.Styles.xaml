@@ -390,15 +390,6 @@
         <!-- Setter Property="TabPanelBackground" Value="#313131" / -->
     </Style>
 
-HorizontalAlignment="Center"
-                            VerticalAlignment="Center" />
-                    </Border>
-                </ControlTemplate>
-            </Setter.Value>
-        </Setter>
-        <Setter Property="Width" Value="45" />
-    </Style>
-
     <!--
         Button styles. Use these instead of local button styles:
         - WKButtonStyle: regular button
@@ -507,20 +498,6 @@ HorizontalAlignment="Center"
             </Trigger>
         </Style.Triggers>
     </Style>
-
-
-    <Style
-        x:Key="ControlsGridStyle"
-        BasedOn="{StaticResource {x:Type Grid}}"
-        TargetType="{x:Type Grid}">
-        <Setter Property="Background" Value="{DynamicResource ShadedBackgroundBrush}" />
-        <Setter Property="Height" Value="250" />
-        <Setter Property="VerticalAlignment" Value="Bottom" />
-    </Style>
-
-    <!-- Custom Scrollbar Control -->
-    <!-- Scrollbar Thumbs -->
-    <Style
 
 
     <!--
