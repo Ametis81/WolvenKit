@@ -1,0 +1,33 @@
+{
+  "formatVersion": 1,
+  "name": "Arasaka White",
+  "author": "WolvenKit",
+  "description": "Arasaka corporate: clean white and light grey surfaces, signal red accent.",
+  "basedOn": "WolvenKit Dark",
+  "accent": "#C8102E",
+  "accentForeground": "#FFFFFF",
+  "colors": {
+    "ContentBackground": "#F5F5F7",
+    "ContentBackgroundAlt": "#EEEEF0",
+    "ContentBackgroundAlt2": "#E4E4E8",
+    "ContentBackgroundAlt3": "#D8D8DE",
+    "ContentBackgroundAlt4": "#CCCCD4",
+    "ContentBackgroundAlt5": "#C0C0C8",
+    "BorderAlt": "#B8B8C0",
+    "ContentForeground": "#1A1A1A",
+    "ForegroundColor": "#1A1A1A",
+    "ForegroundColor_Grey1": "#5A5A60",
+    "BackgroundColor_Control": "#FFFFFF",
+    "BackgroundColor_Frame_Active": "#E4E4E8",
+    "BackgroundColor_Frame_Background": "#EEEEF0",
+    "WolvenKitPanelHeaderSelected": "#C8102E",
+    "WolvenKitPanelTabSelected": "#A00D24",
+    "WolvenKitStatusBarReady": "#C8102E",
+    "WolvenKitProjectSource": "#C8102E",
+    "WolvenKitProjectSourceShadow": "#8A0A1C",
+    "WolvenKitProjectResources": "#1A1A1A",
+    "WolvenKitProjectResourcesShadow": "#4A4A4A",
+    "WolvenKitRedColor": "#C8102E",
+    "WolvenKitAccentShadow": "#8A0A1C"
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "formatVersion": 1,
+  "name": "Militech Field",
+  "author": "WolvenKit",
+  "description": "Militech field: light olive and sand surfaces, signal yellow accent.",
+  "basedOn": "WolvenKit Dark",
+  "accent": "#E6B800",
+  "accentForeground": "#1A1400",
+  "colors": {
+    "ContentBackground": "#F4F1E8",
+    "ContentBackgroundAlt": "#EBE6DA",
+    "ContentBackgroundAlt2": "#E0DAC8",
+    "ContentBackgroundAlt3": "#D4CDB8",
+    "ContentBackgroundAlt4": "#C8C0A8",
+    "ContentBackgroundAlt5": "#BCB498",
+    "BorderAlt": "#B0A888",
+    "ContentForeground": "#1A1810",
+    "ForegroundColor": "#1A1810",
+    "ForegroundColor_Grey1": "#5A5440",
+    "BackgroundColor_Control": "#FFFEF8",
+    "BackgroundColor_Frame_Active": "#E0DAC8",
+    "BackgroundColor_Frame_Background": "#EBE6DA",
+    "WolvenKitPanelHeaderSelected": "#E6B800",
+    "WolvenKitPanelTabSelected": "#5C6B3A",
+    "WolvenKitStatusBarReady": "#5C6B3A",
+    "WolvenKitProjectSource": "#5C6B3A",
+    "WolvenKitProjectSourceShadow": "#3E4A28",
+    "WolvenKitProjectResources": "#E6B800",
+    "WolvenKitProjectResourcesShadow": "#A08000",
+    "WolvenKitYellowColor": "#E6B800",
+    "WolvenKitAccentShadow": "#A08000"
+  }
+}
