@@ -338,6 +338,7 @@ namespace WolvenKit
                 // node brushes are cached per resource key
                 WolvenKit.App.ViewModels.GraphEditor.Nodes.GraphNodeStyling.ClearBrushCache();
                 ApplyThemeLive(_settingsManager, _themeService, _loggerService);
+                RefreshTabStyles();
             }
             catch (Exception ex)
             {
@@ -586,5 +587,42 @@ namespace WolvenKit
                 //Application.Current.Shutdown();
             }
         }
+
+        /// <summary>
+        /// Forces existing TabItemExt controls to re-evaluate their style after a theme change.
+        /// </summary>
+        private static void RefreshTabStyles()
+        {
+            var app = Application.Current;
+            if (app is null)
+            {
+                return;
+            }
+            foreach (Window window in app.Windows)
+            {
+                RefreshTabStylesIn(window);
+            }
+        }
+
+        private static void RefreshTabStylesIn(DependencyObject parent)
+        {
+            if (parent is null)
+            {
+                return;
+            }
+            var count = System.Windows.Media.VisualTreeHelper.GetChildrenCount(parent);
+            for (var i = 0; i < count; i++)
+            {
+                var child = System.Windows.Media.VisualTreeHelper.GetChild(parent, i);
+                if (child is Syncfusion.Windows.Tools.Controls.TabItemExt tabItem)
+                {
+                    var style = tabItem.Style;
+                    tabItem.Style = null;
+                    tabItem.Style = style;
+                }
+                RefreshTabStylesIn(child);
+            }
+        }
+
     }
 }
