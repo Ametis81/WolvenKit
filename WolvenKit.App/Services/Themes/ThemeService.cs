@@ -330,6 +330,7 @@ public sealed partial class ThemeService : IThemeService
             _loggerService.Debug($"Themes: resources of \"{Current.Name}\" written in {watch.ElapsedMilliseconds} ms.");
             CurrentThemeChanged?.Invoke(this, EventArgs.Empty);
             NotifyListeners(); // already on the UI thread here
+            RefreshTabStyles();
         }
 
         if (Application.Current?.Dispatcher is { } dispatcher)
@@ -723,4 +724,45 @@ public sealed partial class ThemeService : IThemeService
             : $"#{color.A:X2}{color.R:X2}{color.G:X2}{color.B:X2}";
 
     #endregion
+
+    /// <summary>
+    /// Forces existing TabItemExt controls to re-evaluate their style after a theme change.
+    /// DynamicResource setters in styles are not automatically refreshed on controls created before the switch.
+    /// </summary>
+    private void RefreshTabStyles()
+    {
+        var app = Application.Current;
+        if (app is null)
+        {
+            return;
+        }
+
+        foreach (Window window in app.Windows)
+        {
+            RefreshTabStylesIn(window);
+        }
+    }
+
+    private static void RefreshTabStylesIn(DependencyObject parent)
+    {
+        if (parent is null)
+        {
+            return;
+        }
+
+        var count = System.Windows.Media.VisualTreeHelper.GetChildrenCount(parent);
+        for (var i = 0; i < count; i++)
+        {
+            var child = System.Windows.Media.VisualTreeHelper.GetChild(parent, i);
+            if (child is Syncfusion.Windows.Tools.Controls.TabItemExt tabItem)
+            {
+                // Clear and re-apply the style so DynamicResource setters are re-evaluated
+                var style = tabItem.Style;
+                tabItem.Style = null;
+                tabItem.Style = style;
+            }
+            RefreshTabStylesIn(child);
+        }
+    }
+
 }
