@@ -23,10 +23,10 @@
     "WolvenKitPanelHeaderSelected": "#C8102E",
     "WolvenKitPanelTabSelected": "#A00D24",
     "WolvenKitStatusBarReady": "#C8102E",
-    "WolvenKitProjectSource": "#C8102E",
-    "WolvenKitProjectSourceShadow": "#8A0A1C",
-    "WolvenKitProjectResources": "#1A1A1A",
-    "WolvenKitProjectResourcesShadow": "#4A4A4A",
+    "WolvenKitProjectSource": "#F5B0B0",
+    "WolvenKitProjectSourceShadow": "#E09090",
+    "WolvenKitProjectResources": "#D0D0D0",
+    "WolvenKitProjectResourcesShadow": "#B0B0B0",
     "WolvenKitRedColor": "#C8102E",
     "WolvenKitAccentShadow": "#8A0A1C"
   }
