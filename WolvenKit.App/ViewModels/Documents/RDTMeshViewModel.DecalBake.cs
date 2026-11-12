@@ -30,15 +30,15 @@ namespace WolvenKit.App.ViewModels.Documents;
 /// </summary>
 public partial class RDTMeshViewModel
 {
-    private const double DecalPositionTolerance = 0.003;   // 3 mm: decals may float slightly
-    private const double DecalMaxUvPerimeter = 0.5;        // larger: the triangle crosses a UV seam
+    private const double DecalPositionTolerance = 0.006;   // 6 mm: decals float slightly above
+    private const double DecalMinPart = 0.02;              // smaller pieces stay in the decal
 
     private readonly ConcurrentDictionary<string, byte> _decalBakesRunning = new();
     private PBRMaterial? _hiddenDecalMaterial;
 
     // decal submesh -> (surface submesh -> its triangles on that surface): geometry only,
     // so kept between applies.
-    private readonly System.Runtime.CompilerServices.ConditionalWeakTable<SubmeshComponent, Dictionary<SubmeshComponent, List<(int Triangle, double[] SurfaceUv)>>> _decalMaps = new();
+    private readonly System.Runtime.CompilerServices.ConditionalWeakTable<SubmeshComponent, Dictionary<SubmeshComponent, List<(int Triangle, double[] SurfaceUv, double Distance)>>> _decalMaps = new();
 
     // decal submesh -> its own geometry and the triangles now carried by surfaces.
     private readonly System.Runtime.CompilerServices.ConditionalWeakTable<SubmeshComponent, DecalHideState> _decalHidden = new();
@@ -147,12 +147,13 @@ public partial class RDTMeshViewModel
             .ToList();
 
         var surfaces = all.Where(x => IsDecalSurface(x.Mesh)).ToList();
+        var result = new List<DecalLayer>();
         if (surfaces.Count == 0)
         {
-            return new List<DecalLayer>();
+            return result;
         }
 
-        var cells = new Dictionary<SubmeshComponent, Dictionary<(long, long, long), List<int>>?>();
+        var grids = new Dictionary<SubmeshComponent, SurfaceTriangleGrid?>();
         var geometries = new Dictionary<SubmeshComponent, SurfaceGeometry?>();
         SurfaceGeometry? Geo(LoadableModel m, SubmeshComponent sm)
         {
@@ -165,11 +166,9 @@ public partial class RDTMeshViewModel
             return g;
         }
 
-        var result = new List<DecalLayer>();
-
         // One submesh per decal material (the lowest LOD): every LOD would blend it again.
-        // Its triangles go to the surfaces they lie on (a decal may cross from skin onto metal);
-        // the rest is still drawn as the decal.
+        // Each triangle goes to the nearest baked surface under it (a decal may cross from
+        // skin onto metal); triangles on none stay in the decal, which still draws them.
         foreach (var decalGroup in all.Where(x => IsBakeableDecal(x.Mesh.MaterialName!))
                      .GroupBy(x => x.Mesh.MaterialName!))
         {
@@ -182,21 +181,21 @@ public partial class RDTMeshViewModel
 
             var maps = _decalMaps.GetOrCreateValue(decal);
             var total = dg.Indices.Length / 3;
-            var assigned = new HashSet<int>();
-            var parts = new List<(LoadableModel Model, SubmeshComponent Surface, List<(int, double[])> Triangles)>();
 
-            foreach (var (surfaceModel, surface) in surfaces.OrderBy(s => s.Mesh.LOD == decal.LOD ? 0 : 1))
+            // triangle -> (surface, its UVs, distance + LOD penalty)
+            var bestFor = new Dictionary<int, (int Surface, double[] Uv, double Score)>();
+            for (var si = 0; si < surfaces.Count; si++)
             {
+                var (surfaceModel, surface) = surfaces[si];
                 if (!maps.TryGetValue(surface, out var mapped))
                 {
-                    var sg = Geo(surfaceModel, surface);
-                    mapped = new List<(int, double[])>();
-                    if (sg != null)
+                    mapped = new List<(int, double[], double)>();
+                    if (Geo(surfaceModel, surface) is { } sg)
                     {
-                        if (!cells.TryGetValue(surface, out var grid))
+                        if (!grids.TryGetValue(surface, out var grid))
                         {
-                            grid = BuildPositionGrid(sg);
-                            cells[surface] = grid;
+                            grid = BuildTriangleGrid(sg);
+                            grids[surface] = grid;
                         }
 
                         if (grid != null)
@@ -208,34 +207,30 @@ public partial class RDTMeshViewModel
                     maps[surface] = mapped;
                 }
 
-                var mine = mapped.Where(t => !assigned.Contains(t.Item1)).ToList();
-                if (mine.Count == 0)
+                var penalty = surface.LOD == decal.LOD ? 0 : 1;   // same LOD first
+                foreach (var (t, uv, distance) in mapped)
                 {
-                    continue;
-                }
-
-                // Another LOD of a surface already used covers the same spot: skip it.
-                if (parts.Any(p => p.Surface.MaterialName == surface.MaterialName))
-                {
-                    continue;
-                }
-
-                foreach (var t in mine)
-                {
-                    assigned.Add(t.Item1);
-                }
-
-                parts.Add((surfaceModel, surface, mine));
-                if (assigned.Count == total)
-                {
-                    break;
+                    var score = distance + penalty;
+                    if (!bestFor.TryGetValue(t, out var current) || score < current.Score)
+                    {
+                        bestFor[t] = (si, uv, score);
+                    }
                 }
             }
 
-            var whole = assigned.Count == total;
-            foreach (var (surfaceModel, surface, triangles) in parts)
+            var parts = bestFor
+                .GroupBy(kv => kv.Value.Surface)
+                .Select(g => (Index: g.Key, Triangles: g.Select(kv => (kv.Key, kv.Value.Uv)).OrderBy(x => x.Key).ToList()))
+                .Where(p => p.Triangles.Count >= Math.Max(3, total * DecalMinPart))
+                .ToList();
+
+            var assigned = parts.Sum(p => p.Triangles.Count);
+            var whole = assigned == total;
+            foreach (var (index, triangles) in parts)
             {
-                result.Add(new DecalLayer(decalGroup.Key, decalModel, decal, dg, surfaceModel, surface, triangles, whole));
+                var (surfaceModel, surface) = surfaces[index];
+                result.Add(new DecalLayer(decalGroup.Key, decalModel, decal, dg, surfaceModel, surface,
+                    triangles.Select(x => (x.Key, x.Uv)).ToList(), whole));
             }
 
             var name = SubmeshComponent.StripMeshPrefix(decalGroup.Key);
@@ -245,10 +240,11 @@ public partial class RDTMeshViewModel
             }
             else
             {
-                var onto = string.Join(", ", parts.Select(p => $"'{SubmeshComponent.StripMeshPrefix(p.Surface.MaterialName)}' {p.Triangles.Count * 100 / total}%"));
+                var onto = string.Join(", ", parts.Select(p =>
+                    $"'{SubmeshComponent.StripMeshPrefix(surfaces[p.Index].Mesh.MaterialName)}' {p.Triangles.Count * 100 / total}%"));
                 Parent?.GetLoggerService()?.Debug(whole
                     ? $"[Decals] '{name}' lies on {onto}"
-                    : $"[Decals] '{name}' lies on {onto}; the other {(total - assigned.Count) * 100 / total}% is drawn as the decal");
+                    : $"[Decals] '{name}' lies on {onto}; the other {(total - assigned) * 100 / total}% is drawn as the decal");
             }
         }
 
@@ -331,113 +327,291 @@ public partial class RDTMeshViewModel
         return new SurfaceGeometry { Positions = positions, Uvs = uvs, Indices = g.Indices.ToArray() };
     }
 
-    private static (long, long, long) DecalCell(Point3D p) =>
-        ((long)Math.Floor(p.X / DecalPositionTolerance),
-         (long)Math.Floor(p.Y / DecalPositionTolerance),
-         (long)Math.Floor(p.Z / DecalPositionTolerance));
-
-    private static Dictionary<(long, long, long), List<int>>? BuildPositionGrid(SurfaceGeometry g)
+    /// <summary>Surface triangles bucketed by position, plus its usual UV-per-metre density.</summary>
+    private sealed class SurfaceTriangleGrid
     {
-        var grid = new Dictionary<(long, long, long), List<int>>();
-        for (var i = 0; i < g.Positions.Length; i++)
+        public double CellSize;
+        public Dictionary<(long, long, long), List<int>> Cells = new();
+        public double UvPerMetre;
+    }
+
+    private (long, long, long) GridCell(SurfaceTriangleGrid grid, Point3D p) =>
+        ((long)Math.Floor(p.X / grid.CellSize), (long)Math.Floor(p.Y / grid.CellSize), (long)Math.Floor(p.Z / grid.CellSize));
+
+    private SurfaceTriangleGrid? BuildTriangleGrid(SurfaceGeometry g)
+    {
+        var triangles = g.Indices.Length / 3;
+        if (triangles == 0)
         {
-            var key = DecalCell(g.Positions[i]);
-            if (!grid.TryGetValue(key, out var list))
+            return null;
+        }
+
+        // Cell about two average edges; triangles go into every cell their (widened) box touches.
+        double edgeSum = 0;
+        var samples = Math.Min(triangles, 2000);
+        var step = Math.Max(1, triangles / samples);
+        var densities = new List<double>(samples);
+        for (var t = 0; t < triangles; t += step)
+        {
+            int a = g.Indices[t * 3], b = g.Indices[t * 3 + 1], c = g.Indices[t * 3 + 2];
+            var world = (g.Positions[a] - g.Positions[b]).Length + (g.Positions[b] - g.Positions[c]).Length +
+                        (g.Positions[c] - g.Positions[a]).Length;
+            edgeSum += world / 3;
+            var uv = UvDistance(g.Uvs, a, b) + UvDistance(g.Uvs, b, c) + UvDistance(g.Uvs, c, a);
+            if (world > 1e-6 && uv > 1e-9)
             {
-                list = new List<int>(1);
-                grid[key] = list;
+                densities.Add(uv / world);
+            }
+        }
+
+        var grid = new SurfaceTriangleGrid
+        {
+            CellSize = Math.Clamp(edgeSum / Math.Max(1, (triangles + step - 1) / step) * 2, 0.005, 0.1),
+        };
+        densities.Sort();
+        grid.UvPerMetre = densities.Count > 0 ? densities[densities.Count / 2] : 0;
+
+        for (var t = 0; t < triangles; t++)
+        {
+            var p0 = g.Positions[g.Indices[t * 3]];
+            var p1 = g.Positions[g.Indices[t * 3 + 1]];
+            var p2 = g.Positions[g.Indices[t * 3 + 2]];
+            var min = new Point3D(Math.Min(p0.X, Math.Min(p1.X, p2.X)) - DecalPositionTolerance,
+                                  Math.Min(p0.Y, Math.Min(p1.Y, p2.Y)) - DecalPositionTolerance,
+                                  Math.Min(p0.Z, Math.Min(p1.Z, p2.Z)) - DecalPositionTolerance);
+            var max = new Point3D(Math.Max(p0.X, Math.Max(p1.X, p2.X)) + DecalPositionTolerance,
+                                  Math.Max(p0.Y, Math.Max(p1.Y, p2.Y)) + DecalPositionTolerance,
+                                  Math.Max(p0.Z, Math.Max(p1.Z, p2.Z)) + DecalPositionTolerance);
+            var (x0, y0, z0) = GridCell(grid, min);
+            var (x1, y1, z1) = GridCell(grid, max);
+            if ((x1 - x0 + 1) * (y1 - y0 + 1) * (z1 - z0 + 1) > 4096)
+            {
+                continue; // a huge triangle (ground plane etc.), not a surface a decal sits on
             }
 
-            list.Add(i);
+            for (var x = x0; x <= x1; x++)
+            for (var y = y0; y <= y1; y++)
+            for (var z = z0; z <= z1; z++)
+            {
+                if (!grid.Cells.TryGetValue((x, y, z), out var list))
+                {
+                    list = new List<int>(4);
+                    grid.Cells[(x, y, z)] = list;
+                }
+
+                list.Add(t);
+            }
         }
 
         return grid;
     }
 
-    /// <summary>Surface vertices near a decal vertex (all of them: a UV seam has duplicates).</summary>
-    private static List<int> NearSurfaceVertices(Point3D p, SurfaceGeometry surface, Dictionary<(long, long, long), List<int>> grid)
+    private static double UvDistance(double[] uvs, int a, int b)
     {
-        var result = new List<int>(2);
-        var (cx, cy, cz) = DecalCell(p);
-        var tol2 = DecalPositionTolerance * DecalPositionTolerance;
-        for (var dx = -1; dx <= 1; dx++)
-        for (var dy = -1; dy <= 1; dy++)
-        for (var dz = -1; dz <= 1; dz++)
-        {
-            if (!grid.TryGetValue((cx + dx, cy + dy, cz + dz), out var list))
-            {
-                continue;
-            }
+        var du = uvs[a * 2] - uvs[b * 2];
+        var dv = uvs[a * 2 + 1] - uvs[b * 2 + 1];
+        return Math.Sqrt(du * du + dv * dv);
+    }
 
-            foreach (var i in list)
+    /// <summary>Closest point of a triangle (Ericson), as barycentric weights of its corners.</summary>
+    private static (double U, double V, double W) ClosestOnTriangle(Point3D p, Point3D a, Point3D b, Point3D c)
+    {
+        var ab = b - a;
+        var ac = c - a;
+        var ap = p - a;
+        var d1 = Vector3D.DotProduct(ab, ap);
+        var d2 = Vector3D.DotProduct(ac, ap);
+        if (d1 <= 0 && d2 <= 0)
+        {
+            return (1, 0, 0);
+        }
+
+        var bp = p - b;
+        var d3 = Vector3D.DotProduct(ab, bp);
+        var d4 = Vector3D.DotProduct(ac, bp);
+        if (d3 >= 0 && d4 <= d3)
+        {
+            return (0, 1, 0);
+        }
+
+        var vc = d1 * d4 - d3 * d2;
+        if (vc <= 0 && d1 >= 0 && d3 <= 0)
+        {
+            var v = d1 / (d1 - d3);
+            return (1 - v, v, 0);
+        }
+
+        var cp = p - c;
+        var d5 = Vector3D.DotProduct(ab, cp);
+        var d6 = Vector3D.DotProduct(ac, cp);
+        if (d6 >= 0 && d5 <= d6)
+        {
+            return (0, 0, 1);
+        }
+
+        var vb = d5 * d2 - d1 * d6;
+        if (vb <= 0 && d2 >= 0 && d6 <= 0)
+        {
+            var w = d2 / (d2 - d6);
+            return (1 - w, 0, w);
+        }
+
+        var va = d3 * d6 - d5 * d4;
+        if (va <= 0 && d4 - d3 >= 0 && d5 - d6 >= 0)
+        {
+            var w = (d4 - d3) / (d4 - d3 + (d5 - d6));
+            return (0, 1 - w, w);
+        }
+
+        var denom = 1 / (va + vb + vc);
+        var vv = vb * denom;
+        var ww = vc * denom;
+        return (1 - vv - ww, vv, ww);
+    }
+
+    /// <summary>Barycentric weights of p's projection on the triangle's plane (not clamped).</summary>
+    private static (double U, double V, double W) PlaneBarycentric(Point3D p, Point3D a, Point3D b, Point3D c)
+    {
+        var v0 = b - a;
+        var v1 = c - a;
+        var v2 = p - a;
+        var d00 = Vector3D.DotProduct(v0, v0);
+        var d01 = Vector3D.DotProduct(v0, v1);
+        var d11 = Vector3D.DotProduct(v1, v1);
+        var d20 = Vector3D.DotProduct(v2, v0);
+        var d21 = Vector3D.DotProduct(v2, v1);
+        var denom = d00 * d11 - d01 * d01;
+        if (Math.Abs(denom) < 1e-18)
+        {
+            return (1, 0, 0);
+        }
+
+        var v = (d11 * d20 - d01 * d21) / denom;
+        var w = (d00 * d21 - d01 * d20) / denom;
+        return (1 - v - w, v, w);
+    }
+
+    /// <summary>The surface triangle nearest to p (within the tolerance) and the point on it.</summary>
+    private (int Triangle, double U, double V, double W, double Distance)? ProjectOnSurface(
+        Point3D p, SurfaceGeometry surface, SurfaceTriangleGrid grid)
+    {
+        if (!grid.Cells.TryGetValue(GridCell(grid, p), out var list))
+        {
+            return null;
+        }
+
+        (int, double, double, double, double)? best = null;
+        var bestD2 = DecalPositionTolerance * DecalPositionTolerance;
+        foreach (var t in list)
+        {
+            var a = surface.Positions[surface.Indices[t * 3]];
+            var b = surface.Positions[surface.Indices[t * 3 + 1]];
+            var c = surface.Positions[surface.Indices[t * 3 + 2]];
+            var (u, v, w) = ClosestOnTriangle(p, a, b, c);
+            var q = new Point3D(a.X * u + b.X * v + c.X * w, a.Y * u + b.Y * v + c.Y * w, a.Z * u + b.Z * v + c.Z * w);
+            var d2 = (q - p).LengthSquared;
+            if (d2 <= bestD2)
             {
-                if ((surface.Positions[i] - p).LengthSquared <= tol2)
-                {
-                    result.Add(i);
-                }
+                bestD2 = d2;
+                best = (t, u, v, w, Math.Sqrt(d2));
             }
         }
 
-        return result;
+        return best;
+    }
+
+    private static (double U, double V) SurfaceUvAt(SurfaceGeometry s, int t, double u, double v, double w)
+    {
+        int a = s.Indices[t * 3], b = s.Indices[t * 3 + 1], c = s.Indices[t * 3 + 2];
+        return (s.Uvs[a * 2] * u + s.Uvs[b * 2] * v + s.Uvs[c * 2] * w,
+                s.Uvs[a * 2 + 1] * u + s.Uvs[b * 2 + 1] * v + s.Uvs[c * 2 + 1] * w);
     }
 
     /// <summary>
-    /// For each decal triangle: the surface UVs of its corners (the combination with the
-    /// smallest UV perimeter, so a triangle does not jump across a seam).
+    /// For each decal triangle on the surface: the surface UVs of its corners and how far it
+    /// lies from the surface. Corners are projected on the nearest surface triangle; when the
+    /// three land on different UV islands (a seam: far more UV than the surface's usual
+    /// density), they are taken from the plane of the triangle under the decal triangle's centre.
+    /// Decal vertices need not be surface vertices (decals are often their own geometry).
     /// </summary>
-    private static bool MapDecalTriangles(SurfaceGeometry decal, SurfaceGeometry surface,
-        Dictionary<(long, long, long), List<int>> grid,
-        out List<(int Triangle, double[] SurfaceUv)> mapped)
+    private bool MapDecalTriangles(SurfaceGeometry decal, SurfaceGeometry surface, SurfaceTriangleGrid grid,
+        out List<(int Triangle, double[] SurfaceUv, double Distance)> mapped)
     {
-        mapped = new List<(int, double[])>();
-        var near = new Dictionary<int, List<int>>();
-        List<int> Near(int v)
+        mapped = new List<(int, double[], double)>();
+        var projected = new Dictionary<int, (int Triangle, double U, double V, double W, double Distance)?>();
+        (int Triangle, double U, double V, double W, double Distance)? Project(int vertex)
         {
-            if (!near.TryGetValue(v, out var list))
+            if (!projected.TryGetValue(vertex, out var r))
             {
-                list = NearSurfaceVertices(decal.Positions[v], surface, grid);
-                near[v] = list;
+                r = ProjectOnSurface(decal.Positions[vertex], surface, grid);
+                projected[vertex] = r;
             }
 
-            return list;
+            return r;
         }
 
+        var maxDensity = grid.UvPerMetre > 0 ? grid.UvPerMetre * 4 : double.MaxValue;
         var triangles = decal.Indices.Length / 3;
         for (var t = 0; t < triangles; t++)
         {
-            var a = Near(decal.Indices[t * 3]);
-            var b = Near(decal.Indices[t * 3 + 1]);
-            var c = Near(decal.Indices[t * 3 + 2]);
-            if (a.Count == 0 || b.Count == 0 || c.Count == 0)
+            int ia = decal.Indices[t * 3], ib = decal.Indices[t * 3 + 1], ic = decal.Indices[t * 3 + 2];
+            var pa = Project(ia);
+            var pb = Project(ib);
+            var pc = Project(ic);
+            if (pa == null || pb == null || pc == null)
             {
                 continue;
             }
 
-            double best = double.MaxValue;
-            double[]? bestUv = null;
-            foreach (var ia in a.Take(4))
-            foreach (var ib in b.Take(4))
-            foreach (var ic in c.Take(4))
+            Point3D A = decal.Positions[ia], B = decal.Positions[ib], C = decal.Positions[ic];
+            var world = (A - B).Length + (B - C).Length + (C - A).Length;
+            if (world < 1e-7)
             {
-                double ua = surface.Uvs[ia * 2], va = surface.Uvs[ia * 2 + 1];
-                double ub = surface.Uvs[ib * 2], vb = surface.Uvs[ib * 2 + 1];
-                double uc = surface.Uvs[ic * 2], vc = surface.Uvs[ic * 2 + 1];
-                var perimeter = Math.Abs(ua - ub) + Math.Abs(va - vb) + Math.Abs(ub - uc) +
-                                Math.Abs(vb - vc) + Math.Abs(uc - ua) + Math.Abs(vc - va);
-                if (perimeter < best)
+                continue;
+            }
+
+            var ua = SurfaceUvAt(surface, pa.Value.Triangle, pa.Value.U, pa.Value.V, pa.Value.W);
+            var ub = SurfaceUvAt(surface, pb.Value.Triangle, pb.Value.U, pb.Value.V, pb.Value.W);
+            var uc = SurfaceUvAt(surface, pc.Value.Triangle, pc.Value.U, pc.Value.V, pc.Value.W);
+            double[] uv = { ua.U, ua.V, ub.U, ub.V, uc.U, uc.V };
+
+            if (UvPerimeter(uv) / world > maxDensity)
+            {
+                // Seam: all three corners from the plane of the triangle under the centre.
+                var centre = new Point3D((A.X + B.X + C.X) / 3, (A.Y + B.Y + C.Y) / 3, (A.Z + B.Z + C.Z) / 3);
+                if (ProjectOnSurface(centre, surface, grid) is not { } under)
                 {
-                    best = perimeter;
-                    bestUv = new[] { ua, va, ub, vb, uc, vc };
+                    continue;
+                }
+
+                var st = under.Triangle;
+                var sa = surface.Positions[surface.Indices[st * 3]];
+                var sb = surface.Positions[surface.Indices[st * 3 + 1]];
+                var sc = surface.Positions[surface.Indices[st * 3 + 2]];
+                var ba = PlaneBarycentric(A, sa, sb, sc);
+                var bb = PlaneBarycentric(B, sa, sb, sc);
+                var bc = PlaneBarycentric(C, sa, sb, sc);
+                ua = SurfaceUvAt(surface, st, ba.U, ba.V, ba.W);
+                ub = SurfaceUvAt(surface, st, bb.U, bb.V, bb.W);
+                uc = SurfaceUvAt(surface, st, bc.U, bc.V, bc.W);
+                uv = new[] { ua.U, ua.V, ub.U, ub.V, uc.U, uc.V };
+                if (UvPerimeter(uv) / world > maxDensity)
+                {
+                    continue;
                 }
             }
 
-            if (bestUv != null && best <= DecalMaxUvPerimeter)
-            {
-                mapped.Add((t, bestUv));
-            }
+            var distance = (pa.Value.Distance + pb.Value.Distance + pc.Value.Distance) / 3;
+            mapped.Add((t, uv, distance));
         }
 
         return mapped.Count > 0;
+    }
+
+    private static double UvPerimeter(double[] uv)
+    {
+        double D(int i, int j) => Math.Sqrt((uv[i] - uv[j]) * (uv[i] - uv[j]) + (uv[i + 1] - uv[j + 1]) * (uv[i + 1] - uv[j + 1]));
+        return D(0, 2) + D(2, 4) + D(4, 0);
     }
 
     // ---- composite cache ---------------------------------------------------------------------
