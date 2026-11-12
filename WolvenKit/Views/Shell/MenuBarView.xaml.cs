@@ -1,5 +1,6 @@
 using System.Reactive.Disposables;
 using System.Windows;
+using System.Windows.Controls;
 using ReactiveUI;
 using Splat;
 using WolvenKit.App.Interaction;
@@ -7,6 +8,7 @@ using WolvenKit.App.Interaction.Options;
 using WolvenKit.App.Models.ProjectManagement.Project;
 using WolvenKit.App.ViewModels.Dialogs;
 using WolvenKit.App.ViewModels.Shell;
+using WolvenKit.Helpers;
 
 namespace WolvenKit.Views.Shell;
 
@@ -313,4 +315,63 @@ public partial class MenuBarView : ReactiveUserControl<MenuBarViewModel>
     }
 
 
+
+    /// <summary>
+    /// Rebuilds the theme list every time, so new / renamed / deleted themes show up without extra plumbing.
+    /// </summary>
+    private void MenuItemTheme_OnSubmenuOpened(object sender, RoutedEventArgs e)
+    {
+        if (!ReferenceEquals(e.OriginalSource, MenuItemTheme))
+        {
+            return; // bubbled up from a nested submenu
+        }
+
+        var themeService = ThemeUiHelper.ThemeService;
+        var current = themeService.Current;
+        var owner = Window.GetWindow(this);
+
+        MenuItemTheme.Items.Clear();
+
+        // grouped: dark / light built-in themes, then the user's own; each with a background + accent swatch
+        foreach (var (group, themes) in ThemeListHelper.Group(themeService))
+        {
+            if (MenuItemTheme.Items.Count > 0)
+            {
+                MenuItemTheme.Items.Add(new Separator());
+            }
+            MenuItemTheme.Items.Add(new MenuItem { Header = group, IsEnabled = false, FontWeight = FontWeights.SemiBold });
+
+            foreach (var theme in themes)
+            {
+                var item = new MenuItem
+                {
+                    Header = theme.DisplayName,
+                    Icon = ThemeListHelper.CreateSwatch(themeService, theme),
+                    FontWeight = ReferenceEquals(theme, current) ? FontWeights.SemiBold : FontWeights.Normal,
+                    ToolTip = string.IsNullOrEmpty(theme.Description) ? null : theme.Description
+                };
+                if (ReferenceEquals(theme, current))
+                {
+                    item.Header = $"{theme.DisplayName}  ✓";
+                }
+                var name = theme.Name;
+                item.Click += (_, _) => themeService.SetActive(name);
+                MenuItemTheme.Items.Add(item);
+            }
+        }
+
+        MenuItemTheme.Items.Add(new Separator());
+
+        var edit = new MenuItem { Header = current.IsBuiltIn ? "Customize current theme…" : "Edit current theme…" };
+        edit.Click += (_, _) => ThemeUiHelper.OpenEditor(themeService.Current, owner);
+        MenuItemTheme.Items.Add(edit);
+
+        var import = new MenuItem { Header = "Import theme…" };
+        import.Click += (_, _) => ThemeUiHelper.Import(owner);
+        MenuItemTheme.Items.Add(import);
+
+        var folder = new MenuItem { Header = "Open themes folder" };
+        folder.Click += (_, _) => ThemeUiHelper.OpenThemesFolder();
+        MenuItemTheme.Items.Add(folder);
+    }
 }
