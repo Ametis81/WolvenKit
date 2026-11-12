@@ -34,6 +34,7 @@ public partial class RDTMeshViewModel
     private const double DecalMinPart = 0.02;              // smaller pieces stay in the decal
     private const double DecalLeftoverShare = 0.05;        // left-over edge pieces searched wider
     private const double DecalLeftoverTolerance = 0.03;    // 3 cm
+    private const double DecalDropShare = 0.01;            // stray triangles not drawn
 
     private readonly ConcurrentDictionary<string, byte> _decalBakesRunning = new();
     private PBRMaterial? _hiddenDecalMaterial;
@@ -55,7 +56,7 @@ public partial class RDTMeshViewModel
     private sealed record DecalLayer(
         string DecalName, LoadableModel DecalModel, SubmeshComponent Decal, SurfaceGeometry DecalGeometry,
         LoadableModel SurfaceModel, SubmeshComponent Surface,
-        List<(int Triangle, double[] SurfaceUv)> Triangles, bool Whole);
+        List<(int Triangle, double[] SurfaceUv)> Triangles, bool Whole, List<int> Dropped);
 
     private sealed class SurfaceGeometry
     {
@@ -294,12 +295,24 @@ public partial class RDTMeshViewModel
                 .ToList();
 
             var assigned = parts.Sum(p => p.Triangles.Count);
-            var whole = assigned == total;
-            foreach (var (index, triangles) in parts)
+
+            // A handful of triangles still without a surface once all the rest is baked (walls
+            // standing off the skin, slivers): in the game a decal only paints the surface, they
+            // add nothing there, so they are not drawn either instead of showing as a lit patch.
+            var dropped = new List<int>();
+            if (parts.Count > 0 && total - assigned > 0 && total - assigned <= Math.Max(4, total * DecalDropShare))
             {
+                var used = parts.SelectMany(p => p.Triangles.Select(x => x.Key)).ToHashSet();
+                dropped = Enumerable.Range(0, total).Where(t => !used.Contains(t)).ToList();
+            }
+
+            var whole = assigned + dropped.Count == total;
+            for (var pi = 0; pi < parts.Count; pi++)
+            {
+                var (index, triangles) = parts[pi];
                 var (surfaceModel, surface) = surfaces[index];
                 result.Add(new DecalLayer(decalGroup.Key, decalModel, decal, dg, surfaceModel, surface,
-                    triangles.Select(x => (x.Key, x.Uv)).ToList(), whole));
+                    triangles.Select(x => (x.Key, x.Uv)).ToList(), whole, pi == 0 ? dropped : new List<int>()));
             }
 
             var name = SubmeshComponent.StripMeshPrefix(decalGroup.Key);
@@ -312,7 +325,7 @@ public partial class RDTMeshViewModel
                 var onto = string.Join(", ", parts.Select(p =>
                     $"'{SubmeshComponent.StripMeshPrefix(surfaces[p.Index].Mesh.MaterialName)}' {p.Triangles.Count * 100 / total}%"));
                 Parent?.GetLoggerService()?.Debug(whole
-                    ? $"[Decals] '{name}' lies on {onto}"
+                    ? $"[Decals] '{name}' lies on {onto}" + (dropped.Count > 0 ? $" ({dropped.Count} stray triangles not drawn)" : "")
                     : $"[Decals] '{name}' lies on {onto}; the other {total - assigned} of {total} triangles are drawn as the decal");
             }
         }
@@ -851,6 +864,8 @@ public partial class RDTMeshViewModel
         {
             state.Baked.Add(triangle);
         }
+
+        state.Baked.UnionWith(layer.Dropped);
 
         var total = layer.DecalGeometry.Indices.Length / 3;
         if (state.Baked.Count >= total)
