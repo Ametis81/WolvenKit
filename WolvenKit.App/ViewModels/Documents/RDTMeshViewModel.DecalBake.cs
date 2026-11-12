@@ -1215,7 +1215,7 @@ public partial class RDTMeshViewModel
             }
 
             using var stream = File.OpenRead(path);
-            using var img = Image.FromStream(stream, false, false);
+            using var img = System.Drawing.Image.FromStream(stream, false, false);
             return (img.Width, img.Height);
         }
         catch
