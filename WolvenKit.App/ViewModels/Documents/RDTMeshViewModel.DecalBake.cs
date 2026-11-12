@@ -95,6 +95,8 @@ public partial class RDTMeshViewModel
                     try
                     {
                         BakeDecalComposite(job, cd, cn, crm);
+                        Parent?.GetLoggerService()?.Debug(
+                            $"[Decals] {job.Layers.Count} decal(s) baked into '{SubmeshComponent.StripMeshPrefix(surfaceName)}'");
                     }
                     catch (Exception ex)
                     {
@@ -165,6 +167,8 @@ public partial class RDTMeshViewModel
             }
 
             var known = _decalOnSurface.GetOrCreateValue(decal);
+            var bestRatio = 0.0;
+            var found = false;
             foreach (var (surfaceModel, surface) in surfaces.OrderBy(s => s.Mesh.LOD == decal.LOD ? 0 : 1))
             {
                 if (known.TryGetValue(surface, out var lies))
@@ -172,6 +176,7 @@ public partial class RDTMeshViewModel
                     if (lies)
                     {
                         result.Add(new DecalLayer(decalGroup.Key, decalModel, decal, surfaceModel, surface));
+                        found = true;
                         break;
                     }
 
@@ -190,14 +195,27 @@ public partial class RDTMeshViewModel
                     cells[surface] = grid;
                 }
 
-                var onSurface = grid != null && MapDecalTriangles(dg, sg, grid, out var mapped) &&
-                                mapped.Count >= dg.Indices.Length / 3 * DecalMatchRatio;
+                var triangles = Math.Max(1, dg.Indices.Length / 3);
+                var ratio = grid != null && MapDecalTriangles(dg, sg, grid, out var mapped) ? (double)mapped.Count / triangles : 0;
+                bestRatio = Math.Max(bestRatio, ratio);
+                var onSurface = ratio >= DecalMatchRatio;
                 known[surface] = onSurface;
                 if (onSurface)
                 {
                     result.Add(new DecalLayer(decalGroup.Key, decalModel, decal, surfaceModel, surface));
+                    Parent?.GetLoggerService()?.Debug(
+                        $"[Decals] '{SubmeshComponent.StripMeshPrefix(decalGroup.Key)}' lies on '{SubmeshComponent.StripMeshPrefix(surface.MaterialName)}' ({ratio:P0} of its triangles)");
+                    found = true;
                     break;
                 }
+            }
+
+            if (!found && !known.ContainsKey(decal))
+            {
+                // Logged once per decal (the marker entry keeps it from repeating).
+                known[decal] = false;
+                Parent?.GetLoggerService()?.Debug(
+                    $"[Decals] '{SubmeshComponent.StripMeshPrefix(decalGroup.Key)}' not on a baked surface (best match {bestRatio:P0} of its triangles, needs {DecalMatchRatio:P0}); drawn as its own mesh");
             }
         }
 
@@ -234,8 +252,10 @@ public partial class RDTMeshViewModel
     /// <summary>An opaque, baked (PNG) surface a decal can be blended into.</summary>
     private bool IsDecalSurface(SubmeshComponent sm)
     {
+        // Not sm.IsTransparent: skin albedo PNGs often carry an alpha channel, which makes the
+        // submesh "transparent" for drawing although it is the opaque surface decals lie on.
         var name = sm.MaterialName!;
-        if (sm.IsTransparent || _multilayerGpuData.ContainsKey(name) || sm.Material is not PBRMaterial)
+        if (_multilayerGpuData.ContainsKey(name) || sm.Material is not PBRMaterial)
         {
             return false;
         }
