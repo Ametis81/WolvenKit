@@ -31,18 +31,29 @@ namespace WolvenKit.App.ViewModels.Documents;
 public partial class RDTMeshViewModel
 {
     private const double DecalPositionTolerance = 0.003;   // 3 mm: decals may float slightly
-    private const double DecalMatchRatio = 0.9;            // share of decal triangles on the surface
-    private const double DecalMaxUvPerimeter = 0.25;       // larger: the triangle crosses a UV seam
+    private const double DecalMaxUvPerimeter = 0.5;        // larger: the triangle crosses a UV seam
 
     private readonly ConcurrentDictionary<string, byte> _decalBakesRunning = new();
     private PBRMaterial? _hiddenDecalMaterial;
 
-    // decal submesh -> (surface submesh -> lies on it): geometry only, so kept between applies.
-    private readonly System.Runtime.CompilerServices.ConditionalWeakTable<SubmeshComponent, Dictionary<SubmeshComponent, bool>> _decalOnSurface = new();
+    // decal submesh -> (surface submesh -> its triangles on that surface): geometry only,
+    // so kept between applies.
+    private readonly System.Runtime.CompilerServices.ConditionalWeakTable<SubmeshComponent, Dictionary<SubmeshComponent, List<(int Triangle, double[] SurfaceUv)>>> _decalMaps = new();
 
+    // decal submesh -> its own geometry and the triangles now carried by surfaces.
+    private readonly System.Runtime.CompilerServices.ConditionalWeakTable<SubmeshComponent, DecalHideState> _decalHidden = new();
+
+    private sealed class DecalHideState
+    {
+        public HelixToolkit.SharpDX.Core.Geometry3D? Original;
+        public readonly HashSet<int> Baked = new();
+    }
+
+    /// <summary>The part of a decal (its triangles) that lies on one surface.</summary>
     private sealed record DecalLayer(
-        string DecalName, LoadableModel DecalModel, SubmeshComponent Decal,
-        LoadableModel SurfaceModel, SubmeshComponent Surface);
+        string DecalName, LoadableModel DecalModel, SubmeshComponent Decal, SurfaceGeometry DecalGeometry,
+        LoadableModel SurfaceModel, SubmeshComponent Surface,
+        List<(int Triangle, double[] SurfaceUv)> Triangles, bool Whole);
 
     private sealed class SurfaceGeometry
     {
@@ -61,6 +72,7 @@ public partial class RDTMeshViewModel
     {
         try
         {
+            RestoreDecals(app);
             var layers = FindDecalLayers(app);
             if (layers.Count == 0)
             {
@@ -156,6 +168,8 @@ public partial class RDTMeshViewModel
         var result = new List<DecalLayer>();
 
         // One submesh per decal material (the lowest LOD): every LOD would blend it again.
+        // Its triangles go to the surfaces they lie on (a decal may cross from skin onto metal);
+        // the rest is still drawn as the decal.
         foreach (var decalGroup in all.Where(x => IsBakeableDecal(x.Mesh.MaterialName!))
                      .GroupBy(x => x.Mesh.MaterialName!))
         {
@@ -166,56 +180,75 @@ public partial class RDTMeshViewModel
                 continue;
             }
 
-            var known = _decalOnSurface.GetOrCreateValue(decal);
-            var bestRatio = 0.0;
-            var found = false;
+            var maps = _decalMaps.GetOrCreateValue(decal);
+            var total = dg.Indices.Length / 3;
+            var assigned = new HashSet<int>();
+            var parts = new List<(LoadableModel Model, SubmeshComponent Surface, List<(int, double[])> Triangles)>();
+
             foreach (var (surfaceModel, surface) in surfaces.OrderBy(s => s.Mesh.LOD == decal.LOD ? 0 : 1))
             {
-                if (known.TryGetValue(surface, out var lies))
+                if (!maps.TryGetValue(surface, out var mapped))
                 {
-                    if (lies)
+                    var sg = Geo(surfaceModel, surface);
+                    mapped = new List<(int, double[])>();
+                    if (sg != null)
                     {
-                        result.Add(new DecalLayer(decalGroup.Key, decalModel, decal, surfaceModel, surface));
-                        found = true;
-                        break;
+                        if (!cells.TryGetValue(surface, out var grid))
+                        {
+                            grid = BuildPositionGrid(sg);
+                            cells[surface] = grid;
+                        }
+
+                        if (grid != null)
+                        {
+                            MapDecalTriangles(dg, sg, grid, out mapped);
+                        }
                     }
 
-                    continue;
+                    maps[surface] = mapped;
                 }
 
-                var sg = Geo(surfaceModel, surface);
-                if (sg == null)
+                var mine = mapped.Where(t => !assigned.Contains(t.Item1)).ToList();
+                if (mine.Count == 0)
                 {
                     continue;
                 }
 
-                if (!cells.TryGetValue(surface, out var grid))
+                // Another LOD of a surface already used covers the same spot: skip it.
+                if (parts.Any(p => p.Surface.MaterialName == surface.MaterialName))
                 {
-                    grid = BuildPositionGrid(sg);
-                    cells[surface] = grid;
+                    continue;
                 }
 
-                var triangles = Math.Max(1, dg.Indices.Length / 3);
-                var ratio = grid != null && MapDecalTriangles(dg, sg, grid, out var mapped) ? (double)mapped.Count / triangles : 0;
-                bestRatio = Math.Max(bestRatio, ratio);
-                var onSurface = ratio >= DecalMatchRatio;
-                known[surface] = onSurface;
-                if (onSurface)
+                foreach (var t in mine)
                 {
-                    result.Add(new DecalLayer(decalGroup.Key, decalModel, decal, surfaceModel, surface));
-                    Parent?.GetLoggerService()?.Debug(
-                        $"[Decals] '{SubmeshComponent.StripMeshPrefix(decalGroup.Key)}' lies on '{SubmeshComponent.StripMeshPrefix(surface.MaterialName)}' ({ratio:P0} of its triangles)");
-                    found = true;
+                    assigned.Add(t.Item1);
+                }
+
+                parts.Add((surfaceModel, surface, mine));
+                if (assigned.Count == total)
+                {
                     break;
                 }
             }
 
-            if (!found && !known.ContainsKey(decal))
+            var whole = assigned.Count == total;
+            foreach (var (surfaceModel, surface, triangles) in parts)
             {
-                // Logged once per decal (the marker entry keeps it from repeating).
-                known[decal] = false;
-                Parent?.GetLoggerService()?.Debug(
-                    $"[Decals] '{SubmeshComponent.StripMeshPrefix(decalGroup.Key)}' not on a baked surface (best match {bestRatio:P0} of its triangles, needs {DecalMatchRatio:P0}); drawn as its own mesh");
+                result.Add(new DecalLayer(decalGroup.Key, decalModel, decal, dg, surfaceModel, surface, triangles, whole));
+            }
+
+            var name = SubmeshComponent.StripMeshPrefix(decalGroup.Key);
+            if (parts.Count == 0)
+            {
+                Parent?.GetLoggerService()?.Debug($"[Decals] '{name}' not on a baked surface; drawn as its own mesh");
+            }
+            else
+            {
+                var onto = string.Join(", ", parts.Select(p => $"'{SubmeshComponent.StripMeshPrefix(p.Surface.MaterialName)}' {p.Triangles.Count * 100 / total}%"));
+                Parent?.GetLoggerService()?.Debug(whole
+                    ? $"[Decals] '{name}' lies on {onto}"
+                    : $"[Decals] '{name}' lies on {onto}; the other {(total - assigned.Count) * 100 / total}% is drawn as the decal");
             }
         }
 
@@ -451,10 +484,8 @@ public partial class RDTMeshViewModel
                 }
             }
 
-            if (layer.Decal.Geometry is HelixToolkit.SharpDX.Core.MeshGeometry3D g)
-            {
-                sb.Append('#').Append(g.Positions?.Count ?? 0).Append('/').Append(g.Indices?.Count ?? 0);
-            }
+            sb.Append('#').Append(layer.DecalGeometry.Positions.Length).Append('/')
+              .Append(layer.DecalGeometry.Indices.Length).Append('/').Append(layer.Triangles.Count);
 
             sb.Append(';');
         }
@@ -505,6 +536,35 @@ public partial class RDTMeshViewModel
             sm.Material = composite;
         }
 
+        foreach (var layer in decals)
+        {
+            HideDecalTriangles(app, layer);
+        }
+    }
+
+    /// <summary>Back to the decals' own geometry before the layers are worked out again.</summary>
+    private void RestoreDecals(Appearance app)
+    {
+        foreach (var sm in app.Models.SelectMany(m => m.Meshes))
+        {
+            if (_decalHidden.TryGetValue(sm, out var state))
+            {
+                if (state.Original != null)
+                {
+                    sm.Geometry = state.Original;
+                }
+
+                _decalHidden.Remove(sm);
+            }
+        }
+    }
+
+    /// <summary>
+    /// The decal's triangles carried by a surface are not drawn any more: all of them (and the
+    /// other LODs) hide the decal; some of them leave a decal with the rest of its triangles.
+    /// </summary>
+    private void HideDecalTriangles(Appearance app, DecalLayer layer)
+    {
         _hiddenDecalMaterial ??= new PBRMaterial
         {
             AlbedoColor = new SharpDX.Color4(0f, 0f, 0f, 0f),
@@ -512,13 +572,51 @@ public partial class RDTMeshViewModel
             RenderShadowMap = false,
         };
 
-        // All LODs of the composited decals: the surface carries them now.
-        var hidden = decals.Select(d => d.DecalName).ToHashSet(StringComparer.Ordinal);
-        foreach (var sm in meshes.Where(sm => sm.MaterialName != null && hidden.Contains(sm.MaterialName)))
+        var state = _decalHidden.GetValue(layer.Decal, _ => new DecalHideState { Original = layer.Decal.Geometry });
+        foreach (var (triangle, _) in layer.Triangles)
         {
-            sm.Material = _hiddenDecalMaterial;
-            sm.IsTransparent = true;
+            state.Baked.Add(triangle);
         }
+
+        var total = layer.DecalGeometry.Indices.Length / 3;
+        if (state.Baked.Count >= total)
+        {
+            // Whole decal on surfaces: hide it, and its other LODs.
+            foreach (var sm in app.Models.SelectMany(m => m.Meshes).Where(sm => sm.MaterialName == layer.DecalName))
+            {
+                sm.Material = _hiddenDecalMaterial;
+                sm.IsTransparent = true;
+            }
+
+            return;
+        }
+
+        if (state.Original is not HelixToolkit.SharpDX.Core.MeshGeometry3D original || original.Indices == null)
+        {
+            return;
+        }
+
+        var kept = new HelixToolkit.SharpDX.Core.IntCollection();
+        for (var t = 0; t < total; t++)
+        {
+            if (!state.Baked.Contains(t))
+            {
+                kept.Add(original.Indices[t * 3]);
+                kept.Add(original.Indices[t * 3 + 1]);
+                kept.Add(original.Indices[t * 3 + 2]);
+            }
+        }
+
+        layer.Decal.Geometry = new HelixToolkit.SharpDX.Core.MeshGeometry3D
+        {
+            Positions = original.Positions,
+            Normals = original.Normals,
+            TextureCoordinates = original.TextureCoordinates,
+            Tangents = original.Tangents,
+            BiTangents = original.BiTangents,
+            Colors = original.Colors,
+            Indices = kept,
+        };
     }
 
     // ---- baking ------------------------------------------------------------------------------
@@ -556,15 +654,7 @@ public partial class RDTMeshViewModel
 
         foreach (var layer in decals)
         {
-            var dg = ReadSurfaceGeometry(layer.DecalModel, layer.Decal);
-            var sg = ReadSurfaceGeometry(layer.SurfaceModel, layer.Surface);
-            if (dg == null || sg == null || !TryGetRawMaterial(layer.DecalName, out var raw) || raw == null)
-            {
-                continue;
-            }
-
-            var grid = BuildPositionGrid(sg);
-            if (grid == null || !MapDecalTriangles(dg, sg, grid, out var mapped))
+            if (!TryGetRawMaterial(layer.DecalName, out var raw) || raw == null)
             {
                 continue;
             }
@@ -573,8 +663,8 @@ public partial class RDTMeshViewModel
             var (rough, metal) = GetDecalRoughMetal(layer.DecalName);
             layers.Add(new DecalJobLayer
             {
-                Decal = dg,
-                Triangles = mapped,
+                Decal = layer.DecalGeometry,
+                Triangles = layer.Triangles,
                 ColorPng = dd,
                 NormalPng = dn,
                 RmPng = drm,
