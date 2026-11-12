@@ -161,10 +161,6 @@ public partial class RDTMeshViewModel
                         {
                             BakeDecalComposite(job, cd, cn, crm);
                         }
-
-                        Parent?.GetLoggerService()?.Debug(overlay
-                            ? $"[Decals] {job.Layers.Count} decal(s) drawn into the overlay of multilayer '{SubmeshComponent.StripMeshPrefix(surfaceName)}'"
-                            : $"[Decals] {job.Layers.Count} decal(s) baked into '{SubmeshComponent.StripMeshPrefix(surfaceName)}'");
                     }
                     catch (Exception ex)
                     {
@@ -191,7 +187,7 @@ public partial class RDTMeshViewModel
         }
         catch (Exception ex)
         {
-            Parent?.GetLoggerService()?.Debug($"[Decals] {ex.Message}");
+            Parent?.GetLoggerService()?.Warning($"[Decals] {ex.Message}");
         }
     }
 
@@ -388,26 +384,6 @@ public partial class RDTMeshViewModel
                 var (surfaceModel, surface) = surfaces[index];
                 result.Add(new DecalLayer(decalGroup.Key, decalModel, decal, dg, surfaceModel, surface,
                     triangles.Select(x => (x.Key, x.Uv)).ToList(), whole, pi == 0 ? dropped : new List<int>()));
-            }
-
-            var name = SubmeshComponent.StripMeshPrefix(decalGroup.Key);
-            if (sharedUv.Count > 0)
-            {
-                Parent?.GetLoggerService()?.Debug(
-                    $"[Decals] '{name}': {sharedUv.Count} of {total} triangles lie on UV the surface also uses elsewhere (mirrored sides); drawn as the decal");
-            }
-
-            if (parts.Count == 0)
-            {
-                Parent?.GetLoggerService()?.Debug($"[Decals] '{name}' not on a baked surface; drawn as its own mesh");
-            }
-            else
-            {
-                var onto = string.Join(", ", parts.Select(p =>
-                    $"'{SubmeshComponent.StripMeshPrefix(surfaces[p.Index].Mesh.MaterialName)}' {p.Triangles.Count * 100 / total}%"));
-                Parent?.GetLoggerService()?.Debug(whole
-                    ? $"[Decals] '{name}' lies on {onto}" + (dropped.Count > 0 ? $" ({dropped.Count} stray triangles not drawn)" : "")
-                    : $"[Decals] '{name}' lies on {onto}; the other {total - assigned} of {total} triangles are drawn as the decal");
             }
         }
 
@@ -1052,8 +1028,7 @@ public partial class RDTMeshViewModel
             rnm.Count(x => x) * 2 > rnm.Count);
         if (withOverlay == null)
         {
-            Parent?.GetLoggerService()?.Debug(
-                $"[Decals] '{SubmeshComponent.StripMeshPrefix(surfaceName)}': no room for the decal overlay in the shader's texture pool; decals drawn on their own");
+            // no room for the decal overlay in the shader's texture pool: decals stay drawn on their own
             return;
         }
 
