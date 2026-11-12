@@ -225,21 +225,17 @@ public partial class RDTMeshViewModel
             var leftover = Enumerable.Range(0, total).Where(t => !bestFor.ContainsKey(t)).ToList();
             if (leftover.Count > 0 && leftover.Count <= total * DecalLeftoverShare && bestFor.Count > 0)
             {
-                var byVertex = new Dictionary<int, List<int>>();
-                for (var t = 0; t < total; t++)
+                // Centres of the triangles that found a surface (decal meshes often split their
+                // vertices, so neighbours are found by distance, not by shared indices).
+                Point3D Centre(int t)
                 {
-                    for (var k = 0; k < 3; k++)
-                    {
-                        var v = dg.Indices[t * 3 + k];
-                        if (!byVertex.TryGetValue(v, out var ts))
-                        {
-                            ts = new List<int>(6);
-                            byVertex[v] = ts;
-                        }
-
-                        ts.Add(t);
-                    }
+                    var a = dg.Positions[dg.Indices[t * 3]];
+                    var b = dg.Positions[dg.Indices[t * 3 + 1]];
+                    var c = dg.Positions[dg.Indices[t * 3 + 2]];
+                    return new Point3D((a.X + b.X + c.X) / 3, (a.Y + b.Y + c.Y) / 3, (a.Z + b.Z + c.Z) / 3);
                 }
+
+                var placed = bestFor.Select(kv => (Centre: Centre(kv.Key), kv.Value.Surface)).ToList();
 
                 foreach (var group in leftover
                              .Select(t => (Triangle: t, Surface: NeighbourSurface(t)))
@@ -273,19 +269,21 @@ public partial class RDTMeshViewModel
 
                 int NeighbourSurface(int t)
                 {
-                    var votes = new Dictionary<int, int>();
-                    for (var k = 0; k < 3; k++)
+                    // The surface of the nearest triangle that has one.
+                    var c = Centre(t);
+                    var best = -1;
+                    var bestD = double.MaxValue;
+                    foreach (var (centre, placedSurface) in placed)
                     {
-                        foreach (var n in byVertex[dg.Indices[t * 3 + k]])
+                        var d = (centre - c).LengthSquared;
+                        if (d < bestD)
                         {
-                            if (bestFor.TryGetValue(n, out var nb))
-                            {
-                                votes[nb.Surface] = votes.GetValueOrDefault(nb.Surface) + 1;
-                            }
+                            bestD = d;
+                            best = placedSurface;
                         }
                     }
 
-                    return votes.Count == 0 ? -1 : votes.MaxBy(kv => kv.Value).Key;
+                    return best;
                 }
             }
 
@@ -315,7 +313,7 @@ public partial class RDTMeshViewModel
                     $"'{SubmeshComponent.StripMeshPrefix(surfaces[p.Index].Mesh.MaterialName)}' {p.Triangles.Count * 100 / total}%"));
                 Parent?.GetLoggerService()?.Debug(whole
                     ? $"[Decals] '{name}' lies on {onto}"
-                    : $"[Decals] '{name}' lies on {onto}; the other {(total - assigned) * 100 / total}% is drawn as the decal");
+                    : $"[Decals] '{name}' lies on {onto}; the other {total - assigned} of {total} triangles are drawn as the decal");
             }
         }
 
