@@ -554,7 +554,8 @@ public partial class RDTMeshViewModel
             Pixels? secondary = null;
             if (Math.Abs(secInfluence) > 1e-8 &&
                 dictionary.TryGetValue("SecondaryMask", out var smObj) &&
-                smObj is CResourceReference<ITexture> smRef && smRef.DepotPath != ResourcePath.Empty)
+                smObj is WolvenKit.RED4.Types.CResourceReference<WolvenKit.RED4.Types.ITexture> smRef &&
+                smRef.DepotPath != WolvenKit.RED4.Types.ResourcePath.Empty)
             {
                 using var sb = await LoadTextureAsBitmap(smRef.DepotPath);
                 secondary = Pixels.From(sb);
