@@ -332,27 +332,32 @@ public partial class MenuBarView : ReactiveUserControl<MenuBarViewModel>
 
         MenuItemTheme.Items.Clear();
 
-        var hadBuiltIn = false;
-        var separatorAdded = false;
-        foreach (var theme in themeService.Themes)
+        // grouped: dark / light built-in themes, then the user's own; each with a background + accent swatch
+        foreach (var (group, themes) in ThemeListHelper.Group(themeService))
         {
-            if (hadBuiltIn && !theme.IsBuiltIn && !separatorAdded)
+            if (MenuItemTheme.Items.Count > 0)
             {
                 MenuItemTheme.Items.Add(new Separator());
-                separatorAdded = true;
             }
-            hadBuiltIn |= theme.IsBuiltIn;
+            MenuItemTheme.Items.Add(new MenuItem { Header = group, IsEnabled = false, FontWeight = FontWeights.SemiBold });
 
-            var item = new MenuItem
+            foreach (var theme in themes)
             {
-                Header = theme.DisplayName,
-                IsCheckable = true,
-                IsChecked = ReferenceEquals(theme, current),
-                ToolTip = string.IsNullOrEmpty(theme.Description) ? null : theme.Description
-            };
-            var name = theme.Name;
-            item.Click += (_, _) => themeService.SetActive(name);
-            MenuItemTheme.Items.Add(item);
+                var item = new MenuItem
+                {
+                    Header = theme.DisplayName,
+                    Icon = ThemeListHelper.CreateSwatch(themeService, theme),
+                    FontWeight = ReferenceEquals(theme, current) ? FontWeights.SemiBold : FontWeights.Normal,
+                    ToolTip = string.IsNullOrEmpty(theme.Description) ? null : theme.Description
+                };
+                if (ReferenceEquals(theme, current))
+                {
+                    item.Header = $"{theme.DisplayName}  ✓";
+                }
+                var name = theme.Name;
+                item.Click += (_, _) => themeService.SetActive(name);
+                MenuItemTheme.Items.Add(item);
+            }
         }
 
         MenuItemTheme.Items.Add(new Separator());
