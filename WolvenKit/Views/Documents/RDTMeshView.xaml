@@ -400,103 +400,198 @@
                     </StackPanel>
                 </Grid>
 
-                <!-- Search Coordinate (sector / block previews only) -->
-                <StackPanel Orientation="Vertical" Visibility="{Binding PanelVisibility.ShowSearchPanel, Converter={StaticResource VisibilityConverter}}">
-                    <TextBlock
-                        Margin="{DynamicResource WolvenKitMarginTiny}"
-                        VerticalAlignment="Center"
-                        Text="Search Coordinate:" />
+                <!-- Sector / block previews: coordinate search, collisions, adding sectors -->
+                <Expander
+                    Margin="{DynamicResource WolvenKitMarginTiny}"
+                    Header="Sector"
+                    Visibility="{Binding PanelVisibility.ShowSearchPanel, Converter={StaticResource VisibilityConverter}}"
+                    IsExpanded="{Binding IsSectorSectionExpanded}">
+                    <StackPanel Orientation="Vertical">
+                        <!-- Variants: which node ranges show, like the appearance of a mesh or an entity -->
+                        <Grid Visibility="{Binding HasSectorVariants, Converter={StaticResource VisibilityConverter}}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition />
+                            </Grid.ColumnDefinitions>
 
-                    <Grid>
-                        <Grid.RowDefinitions>
-                            <RowDefinition />
-                            <RowDefinition Height="{DynamicResource WolvenKitColumnTiny}" />
-                            <RowDefinition />
-                            <RowDefinition Height="{DynamicResource WolvenKitColumnTiny}" />
-                            <RowDefinition />
-                        </Grid.RowDefinitions>
+                            <TextBlock
+                                Grid.Column="0"
+                                Margin="{DynamicResource WolvenKitMarginTiny}"
+                                VerticalAlignment="Center"
+                                Text="Variant:" />
+                            <ComboBox
+                                Grid.Column="1"
+                                Margin="{DynamicResource WolvenKitMarginTiny}"
+                                Padding="{DynamicResource WolvenKitMarginTinyHorizontal}"
+                                DisplayMemberPath="Name"
+                                ItemsSource="{Binding SectorVariants,
+                                                      Mode=OneWay}"
+                                SelectedItem="{Binding SelectedSectorVariant,
+                                                       Mode=TwoWay,
+                                                       UpdateSourceTrigger=PropertyChanged}"
+                                ToolTip="Sector variants are node sets a quest switches on and off (intact / destroyed, decorations...). Nodes that are always loaded always show." />
+                        </Grid>
 
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" SharedSizeGroup="TextBlock" />
-                            <ColumnDefinition />
-                        </Grid.ColumnDefinitions>
-
-                        <TextBlock
-                            Grid.Row="0"
-                            Grid.Column="0"
-                            Margin="{DynamicResource WolvenKitMarginTinyHorizontal}"
-                            VerticalAlignment="Center"
-                            Text="X: " />
-                        <editors:RedFloatEditor
-                            Grid.Row="0"
-                            Grid.Column="1"
-                            Margin="{DynamicResource WolvenKitMarginTinyRight}"
-                            RedNumber="{Binding SearchPoint.X,
-                                                Mode=TwoWay,
-                                                UpdateSourceTrigger=PropertyChanged}" />
-
-                        <TextBlock
-                            Grid.Row="2"
-                            Grid.Column="0"
-                            Margin="{DynamicResource WolvenKitMarginTinyHorizontal}"
-                            VerticalAlignment="Center"
-                            Text="Y: " />
-                        <editors:RedFloatEditor
-                            Grid.Row="2"
-                            Grid.Column="1"
-                            Margin="{DynamicResource WolvenKitMarginTinyRight}"
-                            RedNumber="{Binding SearchPoint.Y,
-                                                Mode=TwoWay,
-                                                UpdateSourceTrigger=PropertyChanged}" />
-
-                        <TextBlock
-                            Grid.Row="4"
-                            Grid.Column="0"
-                            Margin="{DynamicResource WolvenKitMarginTinyHorizontal}"
-                            VerticalAlignment="Center"
-                            Text="Z: " />
-
-                        <editors:RedFloatEditor
-                            Grid.Row="4"
-                            Grid.Column="1"
-                            Margin="{DynamicResource WolvenKitMarginTinyRight}"
-                            RedNumber="{Binding SearchPoint.Z,
-                                                Mode=TwoWay,
-                                                UpdateSourceTrigger=PropertyChanged}" />
-                    </Grid>
-
-                    <Grid Margin="{DynamicResource WolvenKitMarginTinyTop}">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition />
-                            <ColumnDefinition />
-                        </Grid.ColumnDefinitions>
-
-                        <Border
-                            Grid.Row="0"
-                            Grid.Column="0"
-                            Grid.ColumnSpan="2"
-                            BorderBrush="{StaticResource BorderAlt}"
-                            BorderThickness="0,0,0,1" />
-
-                        <Button
-                            Grid.Row="0"
-                            Grid.Column="0"
+                        <!-- Proxy meshes: low detail stand-ins for content of other sectors -->
+                        <CheckBox
                             Margin="{DynamicResource WolvenKitMarginTiny}"
-                            Padding="{DynamicResource WolvenKitMarginTiny}"
-                            HorizontalAlignment="Stretch"
-                            Command="{Binding SearchForPointCommand}"
-                            Content="Search for Coordinate" />
+                            IsChecked="{Binding ShowSectorProxies}"
+                            Content="Show proxy meshes"
+                            ToolTip="Proxy meshes are low detail stand-ins the game shows from far away instead of the real content. Off: hidden, so they don't cover the real meshes." />
 
-                        <Button
-                            Grid.Row="0"
-                            Grid.Column="1"
+                        <!-- Foliage: grass, bushes, trees; can be thousands of instances -->
+                        <CheckBox
                             Margin="{DynamicResource WolvenKitMarginTiny}"
-                            Padding="{DynamicResource WolvenKitMarginTiny}"
-                            HorizontalAlignment="Stretch"
-                            Command="{Binding ClearSearchCommand}"
-                            Content="Clear Search" />
-                    </Grid>
-                </StackPanel>
+                            IsChecked="{Binding ShowSectorFoliage}"
+                            Content="Show foliage"
+                            ToolTip="Grass, bushes and trees (foliage nodes). Turn off to see the ground and the meshes under them, or when a sector with a lot of foliage is slow to move around." />
+
+                        <!-- Area volumes (triggers, light channels, GI spaces...): quick switch for all of them -->
+                        <CheckBox
+                            Margin="{DynamicResource WolvenKitMarginTiny}"
+                            IsChecked="{Binding ShowSectorAreas}"
+                            Content="Show areas"
+                            ToolTip="Area volumes: triggers, interiors, ambient (sound), light channel and GI areas, world boundaries... Off: all hidden; single areas can still be switched in the tree." />
+
+                        <!-- Area volumes coloured by kind (trigger, light channel, GI space...) or all plain; shown with the areas -->
+                        <CheckBox
+                            Margin="{DynamicResource WolvenKitMarginTiny}"
+                            Visibility="{Binding ShowSectorAreas, Converter={StaticResource VisibilityConverter}}"
+                            IsChecked="{Binding ColorSectorAreas}"
+                            Content="Color areas by type"
+                            ToolTip="On: triggers orange, kill triggers red, world boundaries crimson, light channels purple, GI spaces teal, ambient (sound) areas blue, interiors light blue; other areas in the color the node carries. Off: all areas faint white. The Material column of an area's volume row names its kind." />
+
+                        <!-- Search Coordinate -->
+                        <StackPanel Orientation="Vertical">
+                            <TextBlock
+                                Margin="{DynamicResource WolvenKitMarginTiny}"
+                                VerticalAlignment="Center"
+                                Text="Search Coordinate:" />
+
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition />
+                                    <RowDefinition Height="{DynamicResource WolvenKitColumnTiny}" />
+                                    <RowDefinition />
+                                    <RowDefinition Height="{DynamicResource WolvenKitColumnTiny}" />
+                                    <RowDefinition />
+                                </Grid.RowDefinitions>
+
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" SharedSizeGroup="TextBlock" />
+                                    <ColumnDefinition />
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock
+                                    Grid.Row="0"
+                                    Grid.Column="0"
+                                    Margin="{DynamicResource WolvenKitMarginTinyHorizontal}"
+                                    VerticalAlignment="Center"
+                                    Text="X: " />
+                                <editors:RedFloatEditor
+                                    Grid.Row="0"
+                                    Grid.Column="1"
+                                    Margin="{DynamicResource WolvenKitMarginTinyRight}"
+                                    RedNumber="{Binding SearchPoint.X,
+                                                        Mode=TwoWay,
+                                                        UpdateSourceTrigger=PropertyChanged}" />
+
+                                <TextBlock
+                                    Grid.Row="2"
+                                    Grid.Column="0"
+                                    Margin="{DynamicResource WolvenKitMarginTinyHorizontal}"
+                                    VerticalAlignment="Center"
+                                    Text="Y: " />
+                                <editors:RedFloatEditor
+                                    Grid.Row="2"
+                                    Grid.Column="1"
+                                    Margin="{DynamicResource WolvenKitMarginTinyRight}"
+                                    RedNumber="{Binding SearchPoint.Y,
+                                                        Mode=TwoWay,
+                                                        UpdateSourceTrigger=PropertyChanged}" />
+
+                                <TextBlock
+                                    Grid.Row="4"
+                                    Grid.Column="0"
+                                    Margin="{DynamicResource WolvenKitMarginTinyHorizontal}"
+                                    VerticalAlignment="Center"
+                                    Text="Z: " />
+
+                                <editors:RedFloatEditor
+                                    Grid.Row="4"
+                                    Grid.Column="1"
+                                    Margin="{DynamicResource WolvenKitMarginTinyRight}"
+                                    RedNumber="{Binding SearchPoint.Z,
+                                                        Mode=TwoWay,
+                                                        UpdateSourceTrigger=PropertyChanged}" />
+                            </Grid>
+
+                            <Grid Margin="{DynamicResource WolvenKitMarginTinyTop}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition />
+                                    <ColumnDefinition />
+                                </Grid.ColumnDefinitions>
+
+                                <Border
+                                    Grid.Row="0"
+                                    Grid.Column="0"
+                                    Grid.ColumnSpan="2"
+                                    BorderBrush="{StaticResource BorderAlt}"
+                                    BorderThickness="0,0,0,1" />
+
+                                <Button
+                                    Grid.Row="0"
+                                    Grid.Column="0"
+                                    Margin="{DynamicResource WolvenKitMarginTiny}"
+                                    Padding="{DynamicResource WolvenKitMarginTiny}"
+                                    HorizontalAlignment="Stretch"
+                                    Command="{Binding SearchForPointCommand}"
+                                    Content="Search for Coordinate" />
+
+                                <Button
+                                    Grid.Row="0"
+                                    Grid.Column="1"
+                                    Margin="{DynamicResource WolvenKitMarginTiny}"
+                                    Padding="{DynamicResource WolvenKitMarginTiny}"
+                                    HorizontalAlignment="Stretch"
+                                    Command="{Binding ClearSearchCommand}"
+                                    Content="Clear Search" />
+                            </Grid>
+                        </StackPanel>
+
+                        <!-- Collisions/Sectors -->
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition />
+                                <ColumnDefinition />
+                            </Grid.ColumnDefinitions>
+
+                            <Button
+                                x:Name="ToggleCollisionButton"
+                                Grid.Row="0"
+                                Grid.Column="0"
+                                Margin="{DynamicResource WolvenKitMarginTiny}"
+                                Padding="{DynamicResource WolvenKitMarginTiny}"
+                                Visibility="{Binding PanelVisibility.ShowToggleCollision,
+                                                     Converter={StaticResource VisibilityConverter}}"
+                                Command="{Binding ToggleCollisionCommand}"
+                                Content="Toggle Collision"
+                                ToolTip="Toggles the collision nodes" />
+
+                            <Button
+                                x:Name="AddSectorsButton"
+                                Grid.Row="0"
+                                Grid.Column="1"
+                                Margin="{DynamicResource WolvenKitMarginTiny}"
+                                Padding="{DynamicResource WolvenKitMarginTiny}"
+                                Visibility="{Binding PanelVisibility.ShowAddSectors,
+                                                     Converter={StaticResource VisibilityConverter}}"
+                                Command="{Binding AddSectorsToProjectCommand}"
+                                Content="Add Sectors to Project"
+                                ToolTip="Adds the selected sectors to the project" />
+                        </Grid>
+                    </StackPanel>
+                </Expander>
 
                 <!-- Sections; their expanded state is kept for the session (see RDTMeshViewModel.PreviewImage.cs) -->
                 <Expander
@@ -634,6 +729,7 @@
                 <Expander
                     Margin="{DynamicResource WolvenKitMarginTiny}"
                     Header="Image &amp; Icons"
+                    Visibility="{Binding IsObjectPreview, Converter={StaticResource VisibilityConverter}}"
                     IsExpanded="{Binding IsImageSectionExpanded}">
                     <StackPanel Orientation="Vertical">
                         <!-- Save Preview Image: the current view as a PNG with a transparent background (icons) -->
@@ -713,6 +809,7 @@
                             HorizontalAlignment="Stretch"
                             IsEnabled="{Binding IsLoadingMaterials, Converter={StaticResource InvertBooleanConverter}}"
                             Click="SaveAppearanceIcons_OnClick"
+                            Visibility="{Binding IsObjectPreview, Converter={StaticResource VisibilityConverter}}"
                             ToolTip="Pick appearances, then save one icon per appearance into a folder as &lt;file&gt;_&lt;appearance&gt;.png: materials are generated and the item is framed for each, with the size, camera, angle and lighting chosen here"
                             Content="Save Appearance Icons..." />
                     </StackPanel>
@@ -721,6 +818,7 @@
                 <Expander
                     Margin="{DynamicResource WolvenKitMarginTiny}"
                     Header="Camera"
+                    Visibility="{Binding IsObjectPreview, Converter={StaticResource VisibilityConverter}}"
                     IsExpanded="{Binding IsCameraSectionExpanded}">
                     <StackPanel Orientation="Vertical">
                         <ComboBox
@@ -793,6 +891,7 @@
                 <Expander
                     Margin="{DynamicResource WolvenKitMarginTiny}"
                     Header="Shader Debug"
+                    Visibility="{Binding IsObjectPreview, Converter={StaticResource VisibilityConverter}}"
                     IsExpanded="{Binding IsDebugSectionExpanded}">
                     <StackPanel Orientation="Vertical">
                         <!-- Multilayer shader debug view (temporary, for comparing with the bake / Blender) -->
@@ -841,38 +940,6 @@
                         </Grid>
                     </StackPanel>
                 </Expander>
-
-                <!-- Collisions/Sectors -->
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition />
-                        <ColumnDefinition />
-                    </Grid.ColumnDefinitions>
-
-                    <Button
-                        x:Name="ToggleCollisionButton"
-                        Grid.Row="0"
-                        Grid.Column="0"
-                        Margin="{DynamicResource WolvenKitMarginTiny}"
-                        Padding="{DynamicResource WolvenKitMarginTiny}"
-                        Visibility="{Binding PanelVisibility.ShowToggleCollision,
-                                             Converter={StaticResource VisibilityConverter}}"
-                        Command="{Binding ToggleCollisionCommand}"
-                        Content="Toggle Collision"
-                        ToolTip="Toggles the collision nodes" />
-
-                    <Button
-                        x:Name="AddSectorsButton"
-                        Grid.Row="0"
-                        Grid.Column="1"
-                        Margin="{DynamicResource WolvenKitMarginTiny}"
-                        Padding="{DynamicResource WolvenKitMarginTiny}"
-                        Visibility="{Binding PanelVisibility.ShowAddSectors,
-                                             Converter={StaticResource VisibilityConverter}}"
-                        Command="{Binding AddSectorsToProjectCommand}"
-                        Content="Add Sectors to Project"
-                        ToolTip="Adds the selected sectors to the project" />
-                </Grid>
 
                 <!-- Button Click="ReloadModels" Content="Zoom to Extents" / -->
 
@@ -925,7 +992,7 @@
                 ColumnSizer="AutoFillColumn"
                 AllowFiltering="True"
                 AllowResizingColumns="True"
-                AutoExpandMode="AllNodesExpanded"
+                AutoExpandMode="RootNodesExpanded"
                 AutoGenerateColumns="False"
                 CheckBoxMappingName="IsRendering"
                 ChildPropertyName="Children"
