@@ -323,7 +323,11 @@ namespace WolvenKit
         private void OnThemeChanging()
         {
             s_themeSwitchWatch.Restart();
-            Locator.Current.GetService<INotificationService>()?.Info($"Applying theme \"{_themeService.Current.Name}\"… WolvenKit may freeze for a few seconds.");
+            // Desktop notification: an in-app one sits under the Settings page (where themes are usually switched)
+            // and disappears while the main window is hidden to rebuild its visuals.
+            Locator.Current.GetService<INotificationService>()?.ShowDesktopNotification(
+                $"Applying theme \"{_themeService.Current.Name}\"… WolvenKit may freeze for a few seconds.",
+                ENotificationType.Info);
             if (Locator.Current.GetService<IProgressService<double>>() is { } progress)
             {
                 progress.IsIndeterminate = true;
