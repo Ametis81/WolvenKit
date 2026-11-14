@@ -27,6 +27,10 @@ namespace WolvenKit.Views.Documents
         {
             InitializeComponent();
 
+            // The side panel's settings take up to 60 % of the height and scroll beyond it, so the
+            // node tree keeps room on short windows.
+            SidePanelGrid.SizeChanged += (_, e) => SidePanelScroll.MaxHeight = Math.Max(120, e.NewSize.Height * 0.6);
+
             NodeTreeGrid.NodeExpanded += NodeTreeGrid_OnNodeToggled;
             NodeTreeGrid.NodeCollapsed += NodeTreeGrid_OnNodeToggled;
             // a new scene (appearance, sector) gets the search that is typed in

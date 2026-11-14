@@ -332,6 +332,7 @@
             HorizontalAlignment="Stretch" />
 
         <Grid
+            x:Name="SidePanelGrid"
             Grid.Row="0"
             Grid.Column="2">
             <Grid.RowDefinitions>
@@ -339,9 +340,15 @@
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
-            <StackPanel
+            <!-- The settings scroll once they need more than 60 % of the height (set in code
+                 behind), so the node tree below always keeps room -->
+            <ScrollViewer
+                x:Name="SidePanelScroll"
                 Grid.Row="0"
                 Grid.Column="0"
+                HorizontalScrollBarVisibility="Disabled"
+                VerticalScrollBarVisibility="Auto">
+            <StackPanel
                 Width="Auto"
                 IsEnabled="{Binding IsLoaded}"
                 Grid.IsSharedSizeScope="True"
@@ -1102,6 +1109,7 @@
 
                 <!-- Button Command="{Binding ExtractShadersCommand}" Content="Export Shaders" / -->
             </StackPanel>
+            </ScrollViewer>
 
             <!--syncfusion:SfTreeGrid
                 Grid.Row="1"
