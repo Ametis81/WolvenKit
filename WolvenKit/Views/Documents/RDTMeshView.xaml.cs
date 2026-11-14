@@ -325,7 +325,7 @@ namespace WolvenKit.Views.Documents
 
         /// <summary>
         /// Save Appearance Icons: for each picked appearance, select it, generate its materials
-        /// (cached ones are reused), frame it and save &lt;file&gt;_&lt;appearance&gt;.png with the
+        /// (cached ones are reused), frame it and save &lt;prefix&gt;&lt;appearance&gt;&lt;suffix&gt;.png with the
         /// current size, camera angle and projection. The selected appearance is restored after.
         /// </summary>
         private async void SaveAppearanceIcons_OnClick(object sender, RoutedEventArgs e)
@@ -342,19 +342,17 @@ namespace WolvenKit.Views.Documents
                 return;
             }
 
-            if (appearances.Count > 1)
+            // File name (prefix / suffix, remembered per file) and, with several, which appearances.
+            var picked = PickAppearances(vm, appearances.Select(a => a.Name).ToList());
+            if (picked == null)
             {
-                var picked = PickAppearances(appearances.Select(a => a.Name).ToList());
-                if (picked == null)
-                {
-                    return;
-                }
+                return;
+            }
 
-                appearances = appearances.Where(a => picked.Contains(a.Name)).ToList();
-                if (appearances.Count == 0)
-                {
-                    return;
-                }
+            appearances = appearances.Where(a => picked.Contains(a.Name)).ToList();
+            if (appearances.Count == 0)
+            {
+                return;
             }
 
             var folder = vm.PickPreviewIconFolder(appearances.Select(a => a.Name).ToList());
@@ -452,23 +450,66 @@ namespace WolvenKit.Views.Documents
         }
 
         /// <summary>
-        /// Small checklist of appearances for the icon batch: all ticked, with All / None.
-        /// Null if cancelled. Built in code, it is only used here.
+        /// Dialog of the icon batch: the file name as prefix + appearance + suffix (the prefix
+        /// starts as the file's name, focused and selected; both are remembered per file), an
+        /// example name, and a checklist of the appearances (all ticked, with All / None) when
+        /// there are several. Null if cancelled. Built in code, it is only used here.
         /// </summary>
-        private HashSet<string> PickAppearances(IReadOnlyList<string> names)
+        private HashSet<string> PickAppearances(RDTMeshViewModel vm, IReadOnlyList<string> names)
         {
-            var boxes = names.Select(n => new CheckBox { Content = n, IsChecked = true, Margin = new Thickness(4, 2, 4, 2) }).ToList();
+            // A TextBlock, not the string: WPF reads the first '_' of a string label as an access key and hides it.
+            var boxes = names.Select(n => new CheckBox
+            {
+                Content = new TextBlock { Text = n },
+                Tag = n,
+                IsChecked = true,
+                Margin = new Thickness(4, 2, 4, 2),
+            }).ToList();
             var list = new StackPanel();
             foreach (var box in boxes)
             {
                 list.Children.Add(box);
             }
 
+            var parts = vm.GetIconNameParts();
+            var prefix = new TextBox { Text = parts.Prefix, MinWidth = 110, VerticalContentAlignment = VerticalAlignment.Center };
+            var suffix = new TextBox { Text = parts.Suffix, MinWidth = 60, VerticalContentAlignment = VerticalAlignment.Center };
+            var nameRow = new DockPanel { Margin = new Thickness(4, 2, 4, 2) };
+            var nameLabel = new TextBlock { Text = "File name:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 0) };
+            var appearanceLabel = new TextBlock { Text = "$(appearance)", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4, 0, 4, 0), Opacity = 0.7 };
+            var extensionLabel = new TextBlock { Text = ".png", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4, 0, 0, 0), Opacity = 0.7 };
+            DockPanel.SetDock(nameLabel, Dock.Left);
+            DockPanel.SetDock(extensionLabel, Dock.Right);
+            DockPanel.SetDock(suffix, Dock.Right);
+            DockPanel.SetDock(appearanceLabel, Dock.Right);
+            nameRow.Children.Add(nameLabel);
+            nameRow.Children.Add(extensionLabel);
+            nameRow.Children.Add(suffix);
+            nameRow.Children.Add(appearanceLabel);
+            nameRow.Children.Add(prefix);
+
+            var example = new TextBlock { Margin = new Thickness(4, 2, 4, 8), Opacity = 0.7, TextTrimming = TextTrimming.CharacterEllipsis };
+            void UpdateExample()
+            {
+                var shown = boxes.FirstOrDefault(b => b.IsChecked == true)?.Tag as string ?? names.FirstOrDefault() ?? "";
+                example.SetCurrentValue(TextBlock.TextProperty, "→ " + RDTMeshViewModel.BuildIconFileName(prefix.Text, shown, suffix.Text));
+            }
+
+            prefix.TextChanged += (_, _) => UpdateExample();
+            suffix.TextChanged += (_, _) => UpdateExample();
+            boxes.ForEach(b =>
+            {
+                b.Checked += (_, _) => UpdateExample();
+                b.Unchecked += (_, _) => UpdateExample();
+            });
+            UpdateExample();
+
+            var several = names.Count > 1;
             var window = new System.Windows.Window
             {
                 Title = "Save Appearance Icons",
-                Width = 380,
-                Height = Math.Min(560, 150 + 26 * names.Count),
+                Width = 420,
+                Height = several ? Math.Min(620, 210 + 26 * names.Count) : 170,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
                 Owner = System.Windows.Window.GetWindow(this),
                 ResizeMode = ResizeMode.CanResize,
@@ -483,34 +524,58 @@ namespace WolvenKit.Views.Documents
             }
 
             var buttons = new DockPanel { LastChildFill = false, Margin = new Thickness(4) };
-            var all = MakeButton("All", () => boxes.ForEach(b => b.SetCurrentValue(System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty, true)));
-            var none = MakeButton("None", () => boxes.ForEach(b => b.SetCurrentValue(System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty, false)));
             var cancel = MakeButton("Cancel", () => window.DialogResult = false, isCancel: true);
             var ok = MakeButton("Save", () => window.DialogResult = true, isDefault: true);
-            DockPanel.SetDock(all, Dock.Left);
-            DockPanel.SetDock(none, Dock.Left);
+            if (several)
+            {
+                var all = MakeButton("All", () => boxes.ForEach(b => b.SetCurrentValue(System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty, true)));
+                var none = MakeButton("None", () => boxes.ForEach(b => b.SetCurrentValue(System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty, false)));
+                DockPanel.SetDock(all, Dock.Left);
+                DockPanel.SetDock(none, Dock.Left);
+                buttons.Children.Add(all);
+                buttons.Children.Add(none);
+            }
+
             DockPanel.SetDock(cancel, Dock.Right);
             DockPanel.SetDock(ok, Dock.Right);
-            buttons.Children.Add(all);
-            buttons.Children.Add(none);
             buttons.Children.Add(cancel);
             buttons.Children.Add(ok);
 
+            var top = new StackPanel();
+            top.Children.Add(nameRow);
+            top.Children.Add(example);
+            if (several)
+            {
+                top.Children.Add(new TextBlock { Text = "Appearances to save:", Margin = new Thickness(4, 2, 4, 6) });
+            }
+
             var root = new DockPanel { Margin = new Thickness(6) };
-            var header = new TextBlock { Text = "Appearances to save:", Margin = new Thickness(4, 2, 4, 6) };
-            DockPanel.SetDock(header, Dock.Top);
+            DockPanel.SetDock(top, Dock.Top);
             DockPanel.SetDock(buttons, Dock.Bottom);
-            root.Children.Add(header);
+            root.Children.Add(top);
             root.Children.Add(buttons);
-            root.Children.Add(new ScrollViewer { Content = list, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
+            root.Children.Add(new ScrollViewer
+            {
+                Content = list,
+                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                Visibility = several ? Visibility.Visible : Visibility.Collapsed,
+            });
             window.Content = root;
+
+            // Ready to type over the file name.
+            window.Loaded += (_, _) =>
+            {
+                prefix.Focus();
+                prefix.SelectAll();
+            };
 
             if (window.ShowDialog() != true)
             {
                 return null;
             }
 
-            return boxes.Where(b => b.IsChecked == true).Select(b => (string)b.Content).ToHashSet();
+            vm.StoreIconNameParts(prefix.Text, suffix.Text);
+            return boxes.Where(b => b.IsChecked == true).Select(b => (string)b.Tag).ToHashSet();
         }
 
         /// <summary>

@@ -5,7 +5,9 @@ using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Text.Json;
 using System.Threading.Tasks;
+using WolvenKit.App.Services;
 
 namespace WolvenKit.App.ViewModels.Documents;
 
@@ -510,17 +512,103 @@ public partial class RDTMeshViewModel
         return folder;
     }
 
-    /// <summary>&lt;file name&gt;_&lt;appearance&gt;.png in the folder.</summary>
-    public string GetPreviewIconFileName(string folder, string appearanceName)
+    // ---- Icon file names: <prefix><appearance><suffix>.png, remembered per file ----
+
+    /// <summary>Prefix and suffix around the appearance name in icon file names.</summary>
+    public sealed record IconNameParts(string Prefix, string Suffix);
+
+    private static Dictionary<string, IconNameParts>? s_iconNames;
+
+    private static string IconNamesPath => Path.Combine(ISettingsManager.GetAppData(), "previewIconNames.json");
+
+    /// <summary>The default prefix: the file's name and an underscore (none without a file name).</summary>
+    public string DefaultIconNamePrefix =>
+        Path.GetFileNameWithoutExtension(GetDocumentDepotPath()) is { } baseName && !string.IsNullOrWhiteSpace(baseName)
+            ? baseName + "_"
+            : "";
+
+    private string IconNamesKey => GetDocumentDepotPath();
+
+    private Dictionary<string, IconNameParts> IconNames => s_iconNames ??= LoadIconNames();
+
+    private Dictionary<string, IconNameParts> LoadIconNames()
     {
-        var baseName = Path.GetFileNameWithoutExtension(GetDocumentDepotPath());
-        var name = string.IsNullOrWhiteSpace(baseName) ? appearanceName : $"{baseName}_{appearanceName}";
+        try
+        {
+            if (File.Exists(IconNamesPath) &&
+                JsonSerializer.Deserialize<Dictionary<string, IconNameParts>>(File.ReadAllText(IconNamesPath)) is { } map)
+            {
+                return new Dictionary<string, IconNameParts>(map, StringComparer.OrdinalIgnoreCase);
+            }
+        }
+        catch (Exception ex)
+        {
+            Parent?.GetLoggerService()?.Warning($"[Preview Image] icon names could not be read: {ex.Message}");
+        }
+
+        return new Dictionary<string, IconNameParts>(StringComparer.OrdinalIgnoreCase);
+    }
+
+    /// <summary>The prefix and suffix saved for this file, or the default (file name, no suffix).</summary>
+    public IconNameParts GetIconNameParts() =>
+        IconNameKeyValid && IconNames.TryGetValue(IconNamesKey, out var parts)
+            ? parts
+            : new IconNameParts(DefaultIconNamePrefix, "");
+
+    private bool IconNameKeyValid => !string.IsNullOrEmpty(IconNamesKey);
+
+    /// <summary>Keeps the prefix and suffix for this file; the default ones remove its entry.</summary>
+    public void StoreIconNameParts(string prefix, string suffix)
+    {
+        if (!IconNameKeyValid)
+        {
+            return;
+        }
+
+        var isDefault = prefix == DefaultIconNamePrefix && suffix.Length == 0;
+        var changed = isDefault
+            ? IconNames.Remove(IconNamesKey)
+            : !IconNames.TryGetValue(IconNamesKey, out var old) || old != new IconNameParts(prefix, suffix);
+        if (!changed)
+        {
+            return;
+        }
+
+        if (!isDefault)
+        {
+            IconNames[IconNamesKey] = new IconNameParts(prefix, suffix);
+        }
+
+        try
+        {
+            var json = JsonSerializer.Serialize(IconNames, new JsonSerializerOptions { WriteIndented = true });
+            var temp = IconNamesPath + ".tmp";
+            File.WriteAllText(temp, json);
+            File.Move(temp, IconNamesPath, true);
+        }
+        catch (Exception ex)
+        {
+            Parent?.GetLoggerService()?.Warning($"[Preview Image] icon names could not be saved: {ex.Message}");
+        }
+    }
+
+    /// <summary>&lt;prefix&gt;&lt;appearance&gt;&lt;suffix&gt;.png, characters not allowed in file names replaced by '_'.</summary>
+    public static string BuildIconFileName(string prefix, string appearanceName, string suffix)
+    {
+        var name = prefix + appearanceName + suffix;
         foreach (var c in Path.GetInvalidFileNameChars())
         {
             name = name.Replace(c, '_');
         }
 
-        return Path.Combine(folder, name + ".png");
+        return name + ".png";
+    }
+
+    /// <summary>The icon file of an appearance in the folder, with this file's prefix and suffix.</summary>
+    public string GetPreviewIconFileName(string folder, string appearanceName)
+    {
+        var parts = GetIconNameParts();
+        return Path.Combine(folder, BuildIconFileName(parts.Prefix, appearanceName, parts.Suffix));
     }
 
     public void ReportPreviewIconsCancelled(int saved, int total, string folder) =>
