@@ -898,13 +898,23 @@ namespace WolvenKit.Views.Documents
 
         private void ToggleNodes(TreeNode node, bool expand, bool branch, bool siblings)
         {
-            IEnumerable<TreeNode> targets = siblings
-                ? (node.ParentNode?.ChildNodes ?? (IEnumerable<TreeNode>)NodeTreeGrid.View.Nodes).ToList()
-                : [node];
-
             _togglingNodes = true;
             try
             {
+                // Copied by hand: Syncfusion's node collections throw on CopyTo, which ToList uses.
+                var targets = new List<TreeNode>();
+                if (siblings)
+                {
+                    foreach (var sibling in node.ParentNode?.ChildNodes ?? (IEnumerable<TreeNode>)NodeTreeGrid.View.Nodes)
+                    {
+                        targets.Add(sibling);
+                    }
+                }
+                else
+                {
+                    targets.Add(node);
+                }
+
                 foreach (var target in targets)
                 {
                     if (branch)
