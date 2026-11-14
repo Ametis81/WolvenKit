@@ -29,7 +29,7 @@ namespace WolvenKit.Views.Documents
 
             // The side panel's settings take up to 60 % of the height and scroll beyond it, so the
             // node tree keeps room on short windows.
-            SidePanelGrid.SizeChanged += (_, e) => SidePanelScroll.MaxHeight = Math.Max(120, e.NewSize.Height * 0.6);
+            SidePanelGrid.SizeChanged += (_, e) => SidePanelScroll.SetCurrentValue(MaxHeightProperty, Math.Max(120, e.NewSize.Height * 0.6));
 
             NodeTreeGrid.NodeExpanded += NodeTreeGrid_OnNodeToggled;
             NodeTreeGrid.NodeCollapsed += NodeTreeGrid_OnNodeToggled;
@@ -52,7 +52,7 @@ namespace WolvenKit.Views.Documents
                                 // A sector's root opens on its type folders (a dozen); the
                                 // folders, with up to thousands of nodes, stay closed.
                                 // node type column (its funnel picks the kinds of nodes to show)
-                                NodeTypeColumn.IsHidden = false;
+                                NodeTypeColumn.SetCurrentValue(Syncfusion.UI.Xaml.Grid.GridColumnBase.IsHiddenProperty, false);
                             }
 
                             NodeTreeGrid.SetBinding(Syncfusion.UI.Xaml.TreeGrid.SfTreeGrid.ItemsSourceProperty,
