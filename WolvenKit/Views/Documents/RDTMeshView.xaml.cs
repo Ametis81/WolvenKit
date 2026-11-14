@@ -886,7 +886,8 @@ namespace WolvenKit.Views.Documents
                 return;
             }
 
-            var expand = node.IsExpanded;
+            // From the event, not node.IsExpanded: the grid raises it before the flag is set.
+            var expand = e is NodeExpandedEventArgs;
             var branch = (modifiers & ModifierKeys.Shift) != 0;
             var siblings = (modifiers & ModifierKeys.Control) != 0;
 
@@ -915,6 +916,12 @@ namespace WolvenKit.Views.Documents
                     targets.Add(node);
                 }
 
+                // The clicked node itself was already toggled by the grid.
+                if (!branch)
+                {
+                    targets.Remove(node);
+                }
+
                 foreach (var target in targets)
                 {
                     if (branch)
@@ -940,7 +947,8 @@ namespace WolvenKit.Views.Documents
             }
             finally
             {
-                _togglingNodes = false;
+                // The grid raises the events of these toggles later on: ignore them too.
+                Dispatcher.BeginInvoke(new Action(() => _togglingNodes = false), DispatcherPriority.ContextIdle);
             }
         }
 
