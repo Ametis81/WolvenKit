@@ -888,7 +888,17 @@ namespace WolvenKit.Views.Documents
 
             var expand = node.IsExpanded;
             var branch = (modifiers & ModifierKeys.Shift) != 0;
-            IEnumerable<TreeNode> targets = (modifiers & ModifierKeys.Control) != 0
+            var siblings = (modifiers & ModifierKeys.Control) != 0;
+
+            // After the tree has finished its own expand / collapse: called from inside the
+            // event, the grid is still laying out the node and drops the other changes.
+            _togglingNodes = true;
+            Dispatcher.BeginInvoke(new Action(() => ToggleNodes(node, expand, branch, siblings)), DispatcherPriority.Background);
+        }
+
+        private void ToggleNodes(TreeNode node, bool expand, bool branch, bool siblings)
+        {
+            IEnumerable<TreeNode> targets = siblings
                 ? (node.ParentNode?.ChildNodes ?? (IEnumerable<TreeNode>)NodeTreeGrid.View.Nodes).ToList()
                 : [node];
 
