@@ -45,10 +45,8 @@ namespace WolvenKit.Views.Documents
                         {
                             if (!vm.IsObjectPreview)
                             {
-                                // A sector's root holds every node of it (thousands): opened on
-                                // demand, or by a click in the viewport, not on every open.
-                                NodeTreeGrid.SetCurrentValue(SfTreeGrid.AutoExpandModeProperty, AutoExpandMode.None);
-
+                                // A sector's root opens on its type folders (a dozen); the
+                                // folders, with up to thousands of nodes, stay closed.
                                 // node type column (its funnel picks the kinds of nodes to show)
                                 NodeTypeColumn.IsHidden = false;
                             }
