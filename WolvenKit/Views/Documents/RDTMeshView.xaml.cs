@@ -27,6 +27,16 @@ namespace WolvenKit.Views.Documents
         {
             InitializeComponent();
 
+            // The side panel's settings take up to 60 % of the height and scroll beyond it, so the
+            // node tree keeps room on short windows.
+            SidePanelGrid.SizeChanged += (_, e) => SidePanelScroll.SetCurrentValue(MaxHeightProperty, Math.Max(120, e.NewSize.Height * 0.6));
+
+            NodeTreeGrid.NodeExpanded += NodeTreeGrid_OnNodeToggled;
+            NodeTreeGrid.NodeCollapsed += NodeTreeGrid_OnNodeToggled;
+            // a new scene (appearance, sector) gets the search that is typed in
+            NodeTreeGrid.ItemsSourceChanged += (_, _) =>
+                Dispatcher.InvokeAsync(() => ApplyNodeSearch(NodeSearchBox.Text?.Trim()), DispatcherPriority.Background);
+
             this.WhenActivated(disposables =>
             {
                 if (DataContext is RDTMeshViewModel vm)
@@ -39,9 +49,10 @@ namespace WolvenKit.Views.Documents
                         {
                             if (!vm.IsObjectPreview)
                             {
-                                // A sector's root holds every node of it (thousands): opened on
-                                // demand, or by a click in the viewport, not on every open.
-                                NodeTreeGrid.SetCurrentValue(SfTreeGrid.AutoExpandModeProperty, AutoExpandMode.None);
+                                // A sector's root opens on its type folders (a dozen); the
+                                // folders, with up to thousands of nodes, stay closed.
+                                // node type column (its funnel picks the kinds of nodes to show)
+                                NodeTypeColumn.SetCurrentValue(Syncfusion.UI.Xaml.Grid.GridColumnBase.IsHiddenProperty, false);
                             }
 
                             NodeTreeGrid.SetBinding(Syncfusion.UI.Xaml.TreeGrid.SfTreeGrid.ItemsSourceProperty,
@@ -325,7 +336,7 @@ namespace WolvenKit.Views.Documents
 
         /// <summary>
         /// Save Appearance Icons: for each picked appearance, select it, generate its materials
-        /// (cached ones are reused), frame it and save &lt;file&gt;_&lt;appearance&gt;.png with the
+        /// (cached ones are reused), frame it and save &lt;prefix&gt;&lt;appearance&gt;&lt;suffix&gt;.png with the
         /// current size, camera angle and projection. The selected appearance is restored after.
         /// </summary>
         private async void SaveAppearanceIcons_OnClick(object sender, RoutedEventArgs e)
@@ -342,19 +353,17 @@ namespace WolvenKit.Views.Documents
                 return;
             }
 
-            if (appearances.Count > 1)
+            // File name (prefix / suffix, remembered per file) and, with several, which appearances.
+            var picked = PickAppearances(vm, appearances.Select(a => a.Name).ToList());
+            if (picked == null)
             {
-                var picked = PickAppearances(appearances.Select(a => a.Name).ToList());
-                if (picked == null)
-                {
-                    return;
-                }
+                return;
+            }
 
-                appearances = appearances.Where(a => picked.Contains(a.Name)).ToList();
-                if (appearances.Count == 0)
-                {
-                    return;
-                }
+            appearances = appearances.Where(a => picked.Contains(a.Name)).ToList();
+            if (appearances.Count == 0)
+            {
+                return;
             }
 
             var folder = vm.PickPreviewIconFolder(appearances.Select(a => a.Name).ToList());
@@ -452,23 +461,66 @@ namespace WolvenKit.Views.Documents
         }
 
         /// <summary>
-        /// Small checklist of appearances for the icon batch: all ticked, with All / None.
-        /// Null if cancelled. Built in code, it is only used here.
+        /// Dialog of the icon batch: the file name as prefix + appearance + suffix (the prefix
+        /// starts as the file's name, focused and selected; both are remembered per file), an
+        /// example name, and a checklist of the appearances (all ticked, with All / None) when
+        /// there are several. Null if cancelled. Built in code, it is only used here.
         /// </summary>
-        private HashSet<string> PickAppearances(IReadOnlyList<string> names)
+        private HashSet<string> PickAppearances(RDTMeshViewModel vm, IReadOnlyList<string> names)
         {
-            var boxes = names.Select(n => new CheckBox { Content = n, IsChecked = true, Margin = new Thickness(4, 2, 4, 2) }).ToList();
+            // A TextBlock, not the string: WPF reads the first '_' of a string label as an access key and hides it.
+            var boxes = names.Select(n => new CheckBox
+            {
+                Content = new TextBlock { Text = n },
+                Tag = n,
+                IsChecked = true,
+                Margin = new Thickness(4, 2, 4, 2),
+            }).ToList();
             var list = new StackPanel();
             foreach (var box in boxes)
             {
                 list.Children.Add(box);
             }
 
+            var parts = vm.GetIconNameParts();
+            var prefix = new TextBox { Text = parts.Prefix, MinWidth = 110, VerticalContentAlignment = VerticalAlignment.Center };
+            var suffix = new TextBox { Text = parts.Suffix, MinWidth = 60, VerticalContentAlignment = VerticalAlignment.Center };
+            var nameRow = new DockPanel { Margin = new Thickness(4, 2, 4, 2) };
+            var nameLabel = new TextBlock { Text = "File name:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 0) };
+            var appearanceLabel = new TextBlock { Text = "$(appearance)", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4, 0, 4, 0), Opacity = 0.7 };
+            var extensionLabel = new TextBlock { Text = ".png", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4, 0, 0, 0), Opacity = 0.7 };
+            DockPanel.SetDock(nameLabel, Dock.Left);
+            DockPanel.SetDock(extensionLabel, Dock.Right);
+            DockPanel.SetDock(suffix, Dock.Right);
+            DockPanel.SetDock(appearanceLabel, Dock.Right);
+            nameRow.Children.Add(nameLabel);
+            nameRow.Children.Add(extensionLabel);
+            nameRow.Children.Add(suffix);
+            nameRow.Children.Add(appearanceLabel);
+            nameRow.Children.Add(prefix);
+
+            var example = new TextBlock { Margin = new Thickness(4, 2, 4, 8), Opacity = 0.7, TextTrimming = TextTrimming.CharacterEllipsis };
+            void UpdateExample()
+            {
+                var shown = boxes.FirstOrDefault(b => b.IsChecked == true)?.Tag as string ?? names.FirstOrDefault() ?? "";
+                example.SetCurrentValue(TextBlock.TextProperty, "→ " + RDTMeshViewModel.BuildIconFileName(prefix.Text, shown, suffix.Text));
+            }
+
+            prefix.TextChanged += (_, _) => UpdateExample();
+            suffix.TextChanged += (_, _) => UpdateExample();
+            boxes.ForEach(b =>
+            {
+                b.Checked += (_, _) => UpdateExample();
+                b.Unchecked += (_, _) => UpdateExample();
+            });
+            UpdateExample();
+
+            var several = names.Count > 1;
             var window = new System.Windows.Window
             {
                 Title = "Save Appearance Icons",
-                Width = 380,
-                Height = Math.Min(560, 150 + 26 * names.Count),
+                Width = 420,
+                Height = several ? Math.Min(620, 210 + 26 * names.Count) : 170,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
                 Owner = System.Windows.Window.GetWindow(this),
                 ResizeMode = ResizeMode.CanResize,
@@ -483,34 +535,58 @@ namespace WolvenKit.Views.Documents
             }
 
             var buttons = new DockPanel { LastChildFill = false, Margin = new Thickness(4) };
-            var all = MakeButton("All", () => boxes.ForEach(b => b.SetCurrentValue(System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty, true)));
-            var none = MakeButton("None", () => boxes.ForEach(b => b.SetCurrentValue(System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty, false)));
             var cancel = MakeButton("Cancel", () => window.DialogResult = false, isCancel: true);
             var ok = MakeButton("Save", () => window.DialogResult = true, isDefault: true);
-            DockPanel.SetDock(all, Dock.Left);
-            DockPanel.SetDock(none, Dock.Left);
+            if (several)
+            {
+                var all = MakeButton("All", () => boxes.ForEach(b => b.SetCurrentValue(System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty, true)));
+                var none = MakeButton("None", () => boxes.ForEach(b => b.SetCurrentValue(System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty, false)));
+                DockPanel.SetDock(all, Dock.Left);
+                DockPanel.SetDock(none, Dock.Left);
+                buttons.Children.Add(all);
+                buttons.Children.Add(none);
+            }
+
             DockPanel.SetDock(cancel, Dock.Right);
             DockPanel.SetDock(ok, Dock.Right);
-            buttons.Children.Add(all);
-            buttons.Children.Add(none);
             buttons.Children.Add(cancel);
             buttons.Children.Add(ok);
 
+            var top = new StackPanel();
+            top.Children.Add(nameRow);
+            top.Children.Add(example);
+            if (several)
+            {
+                top.Children.Add(new TextBlock { Text = "Appearances to save:", Margin = new Thickness(4, 2, 4, 6) });
+            }
+
             var root = new DockPanel { Margin = new Thickness(6) };
-            var header = new TextBlock { Text = "Appearances to save:", Margin = new Thickness(4, 2, 4, 6) };
-            DockPanel.SetDock(header, Dock.Top);
+            DockPanel.SetDock(top, Dock.Top);
             DockPanel.SetDock(buttons, Dock.Bottom);
-            root.Children.Add(header);
+            root.Children.Add(top);
             root.Children.Add(buttons);
-            root.Children.Add(new ScrollViewer { Content = list, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
+            root.Children.Add(new ScrollViewer
+            {
+                Content = list,
+                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                Visibility = several ? Visibility.Visible : Visibility.Collapsed,
+            });
             window.Content = root;
+
+            // Ready to type over the file name.
+            window.Loaded += (_, _) =>
+            {
+                prefix.Focus();
+                prefix.SelectAll();
+            };
 
             if (window.ShowDialog() != true)
             {
                 return null;
             }
 
-            return boxes.Where(b => b.IsChecked == true).Select(b => (string)b.Content).ToHashSet();
+            vm.StoreIconNameParts(prefix.Text, suffix.Text);
+            return boxes.Where(b => b.IsChecked == true).Select(b => (string)b.Tag).ToHashSet();
         }
 
         /// <summary>
@@ -768,6 +844,175 @@ namespace WolvenKit.Views.Documents
                 new((float)up.X, (float)up.Y, (float)up.Z),
                 0);
             UpdateFollowLights();
+        }
+
+        // ---- Node tree: search ----
+        // Keeps the rows whose name, node index or path contains the text, with their parents
+        // (the tree's FilterLevel) and everything under them.
+
+        private DispatcherTimer _nodeSearchTimer;
+        private HashSet<object> _nodeSearchMatches;
+
+        private void NodeSearchBox_OnTextChanged(object sender, TextChangedEventArgs e)
+        {
+            _nodeSearchTimer ??= new DispatcherTimer(TimeSpan.FromMilliseconds(250), DispatcherPriority.Background,
+                (_, _) =>
+                {
+                    _nodeSearchTimer.Stop();
+                    ApplyNodeSearch(NodeSearchBox.Text?.Trim());
+                }, Dispatcher);
+            _nodeSearchTimer.Stop();
+            _nodeSearchTimer.Start();
+        }
+
+        private void ApplyNodeSearch(string text)
+        {
+            if (NodeTreeGrid.View is not { } view)
+            {
+                return;
+            }
+
+            if (string.IsNullOrEmpty(text))
+            {
+                _nodeSearchMatches = null;
+                view.Filter = null;
+                view.RefreshFilter();
+                return;
+            }
+
+            var matches = new HashSet<object>(ReferenceEqualityComparer.Instance);
+            if (ViewModel?.SelectedModelGroup is { } roots)
+            {
+                foreach (var root in roots)
+                {
+                    CollectNodeSearchMatches(root, text, false, matches);
+                }
+            }
+
+            _nodeSearchMatches = matches;
+            view.Filter = item => _nodeSearchMatches?.Contains(item) != false;
+            view.RefreshFilter();
+        }
+
+        private static void CollectNodeSearchMatches(object element, string text, bool underMatch, HashSet<object> matches)
+        {
+            var match = underMatch || NodeMatches(element, text);
+            if (match)
+            {
+                matches.Add(element);
+            }
+
+            if (element is HelixToolkit.Wpf.SharpDX.GroupModel3D group)
+            {
+                foreach (var child in group.Children)
+                {
+                    CollectNodeSearchMatches(child, text, match, matches);
+                }
+            }
+        }
+
+        private static bool NodeMatches(object element, string text)
+        {
+            static bool Has(string value, string text) =>
+                !string.IsNullOrEmpty(value) && value.Contains(text, StringComparison.OrdinalIgnoreCase);
+
+            return element switch
+            {
+                WolvenKit.App.Models.MeshComponent mesh =>
+                    Has(mesh.Text, text) || Has(mesh.Name, text) || mesh.WorldNodeIndex == text ||
+                    Has(mesh.DepotPath.GetResolvedText(), text) || Has(mesh.WorldNodeType, text),
+                WolvenKit.App.Models.GroupModel3DExt group => Has(group.Text, text) || Has(group.Name, text),
+                WolvenKit.App.Models.SubmeshComponent submesh => Has(submesh.Text, text) || Has(submesh.Name, text),
+                HelixToolkit.Wpf.SharpDX.Element3D other => Has(other.Name, text),
+                _ => false,
+            };
+        }
+
+        // ---- Node tree: expand / collapse with modifiers, as in Blender's outliner ----
+        // Shift: the node's whole branch. Ctrl: its siblings too. Ctrl+Shift: the siblings' branches.
+
+        private bool _togglingNodes;
+
+        private void NodeTreeGrid_OnNodeToggled(object sender, EventArgs e)
+        {
+            var node = e switch
+            {
+                NodeExpandedEventArgs expanded => expanded.Node,
+                NodeCollapsedEventArgs collapsed => collapsed.Node,
+                _ => null,
+            };
+            var modifiers = Keyboard.Modifiers;
+            // Only the user's own clicks / keys in the tree: a viewport click with Shift opens
+            // the tree to the picked mesh and must not open whole branches.
+            if (_togglingNodes || node == null ||
+                (modifiers & (ModifierKeys.Shift | ModifierKeys.Control)) == 0 ||
+                !(NodeTreeGrid.IsMouseOver || NodeTreeGrid.IsKeyboardFocusWithin))
+            {
+                return;
+            }
+
+            // From the event, not node.IsExpanded: the grid raises it before the flag is set.
+            var expand = e is NodeExpandedEventArgs;
+            var branch = (modifiers & ModifierKeys.Shift) != 0;
+            var siblings = (modifiers & ModifierKeys.Control) != 0;
+
+            // Right away: queued on the dispatcher it waited for the 3D view's frames (seconds).
+            // The grid echoes these toggles later, in the same direction, so the echoes change nothing.
+            ToggleNodes(node, expand, branch, siblings);
+        }
+
+        private void ToggleNodes(TreeNode node, bool expand, bool branch, bool siblings)
+        {
+            _togglingNodes = true;
+            try
+            {
+                // Copied by hand: Syncfusion's node collections throw on CopyTo, which ToList uses.
+                var targets = new List<TreeNode>();
+                if (siblings)
+                {
+                    foreach (var sibling in node.ParentNode?.ChildNodes ?? (IEnumerable<TreeNode>)NodeTreeGrid.View.Nodes)
+                    {
+                        targets.Add(sibling);
+                    }
+                }
+                else
+                {
+                    targets.Add(node);
+                }
+
+                // The clicked node itself was already toggled by the grid.
+                if (!branch)
+                {
+                    targets.Remove(node);
+                }
+
+                foreach (var target in targets)
+                {
+                    if (branch)
+                    {
+                        if (expand)
+                        {
+                            NodeTreeGrid.ExpandAllNodes(target);
+                        }
+                        else
+                        {
+                            NodeTreeGrid.CollapseAllNodes(target);
+                        }
+                    }
+                    else if (expand && !target.IsExpanded)
+                    {
+                        NodeTreeGrid.ExpandNode(target);
+                    }
+                    else if (!expand && target.IsExpanded)
+                    {
+                        NodeTreeGrid.CollapseNode(target);
+                    }
+                }
+            }
+            finally
+            {
+                _togglingNodes = false;
+            }
         }
 
         private void PreviewCamera_OnSelectionChanged(object sender, SelectionChangedEventArgs e) =>
