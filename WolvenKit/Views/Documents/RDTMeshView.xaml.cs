@@ -894,7 +894,7 @@ namespace WolvenKit.Views.Documents
             // After the tree has finished its own expand / collapse: called from inside the
             // event, the grid is still laying out the node and drops the other changes.
             _togglingNodes = true;
-            Dispatcher.BeginInvoke(new Action(() => ToggleNodes(node, expand, branch, siblings)), DispatcherPriority.Background);
+            Dispatcher.BeginInvoke(new Action(() => ToggleNodes(node, expand, branch, siblings)), DispatcherPriority.Input);
         }
 
         private void ToggleNodes(TreeNode node, bool expand, bool branch, bool siblings)
@@ -948,7 +948,7 @@ namespace WolvenKit.Views.Documents
             finally
             {
                 // The grid raises the events of these toggles later on: ignore them too.
-                Dispatcher.BeginInvoke(new Action(() => _togglingNodes = false), DispatcherPriority.ContextIdle);
+                Dispatcher.BeginInvoke(new Action(() => _togglingNodes = false), DispatcherPriority.Input);
             }
         }
 
