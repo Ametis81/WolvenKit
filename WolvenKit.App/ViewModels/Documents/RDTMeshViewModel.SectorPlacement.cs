@@ -515,11 +515,16 @@ public partial class RDTMeshViewModel
     // Files embedded in the sector being drawn and in its extern inplace resource, by path.
     private Dictionary<ResourcePath, CR2WFile>? _sectorEmbeddedFiles;
 
-    // What the shown sectors and the read files embed besides meshes (material instances,
-    // mlsetups, masks, textures - a terrain mesh carries its mask, base colour and global
-    // normal as inplace resources), kept after building: materials are generated later.
-    // The first file to embed a path wins.
+    // What the shown sectors and the files read while building them embed besides meshes
+    // (material instances, mlsetups, masks, textures - a terrain mesh carries its mask, base
+    // colour and global normal as inplace resources), kept after building: materials are
+    // generated later. The first file to embed a path wins.
     private readonly System.Collections.Concurrent.ConcurrentDictionary<ResourcePath, CR2WFile> _keptEmbeddedFiles = new();
+
+    // What the files read for the materials embed besides meshes (a .mi often its mlsetup).
+    // Lives as long as the file cache: cleared with it (Generate, Ctrl+Generate) and when a
+    // project file changes, so an edited or removed file does not leave its embedded copies behind.
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<ResourcePath, CR2WFile> _readEmbeddedFiles = new();
 
     /// <summary>Keeps the non-mesh files a read file embeds (called for every file read).</summary>
     private void KeepEmbeddedFiles(CR2WFile? file)
@@ -533,7 +538,12 @@ public partial class RDTMeshViewModel
         {
             if (embedded?.Content is { } content and not CMesh && embedded.FileName != ResourcePath.Empty)
             {
-                _keptEmbeddedFiles.TryAdd(embedded.FileName, new CR2WFile { RootChunk = content });
+                // while a sector is built (the snapshot is taken): kept with the sector
+                var kept = _projectFileSnapshot != null ? _keptEmbeddedFiles : _readEmbeddedFiles;
+                if (!kept.ContainsKey(embedded.FileName))
+                {
+                    kept.TryAdd(embedded.FileName, new CR2WFile { RootChunk = content });
+                }
             }
         }
     }
@@ -593,8 +603,9 @@ public partial class RDTMeshViewModel
     }
 
     /// <summary>A non-mesh file embedded in a sector or a file read for this preview, for material generation.</summary>
-    private CR2WFile? KeptEmbeddedFile(ResourcePath path) =>
-        _keptEmbeddedFiles.TryGetValue(path, out var file) ? file : null;
+    /// <param name="readEmbedded">false: not the copies embedded in the files read for the materials</param>
+    private CR2WFile? KeptEmbeddedFile(ResourcePath path, bool readEmbedded = true) =>
+        _keptEmbeddedFiles.TryGetValue(path, out var file) || (readEmbedded && _readEmbeddedFiles.TryGetValue(path, out file)) ? file : null;
 
     /// <summary>Content of a file embedded in the sector (or the open document) under this path.</summary>
     private RedBaseClass? EmbeddedForSector(ResourcePath path) =>

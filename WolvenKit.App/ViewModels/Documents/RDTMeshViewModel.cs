@@ -3269,7 +3269,17 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
     /// open project over mods and the base archive (includeProject = true).
     /// Results are cached for the duration of a material load pass.
     /// </summary>
-    private CR2WFile? GetProjectOrDepotFile(ResourcePath depotPath)
+    private CR2WFile? GetProjectOrDepotFile(ResourcePath depotPath) => GetProjectOrDepotFile(depotPath, true);
+
+    /// <summary>
+    /// A file a reference points to: the copy embedded in the referencing file (a .mi often
+    /// carries its mlsetup) only when the reference is flagged Embedded, as in the game; with
+    /// the Default flag the file itself (project, mods, archive) is read.
+    /// </summary>
+    private CR2WFile? GetReferencedFile(ResourcePath depotPath, InternalEnums.EImportFlags flags) =>
+        GetProjectOrDepotFile(depotPath, (flags & InternalEnums.EImportFlags.Embedded) != 0);
+
+    private CR2WFile? GetProjectOrDepotFile(ResourcePath depotPath, bool readEmbedded)
     {
         TrackDependency(depotPath);
 
@@ -3280,11 +3290,14 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
 
         // Materials find what the shown sectors and the read files embed, also after building
         // (a terrain mesh's mlmask, base colour and global normal are its inplace resources).
-        if (KeptEmbeddedFile(depotPath) is { } keptEmbedded)
+        if (KeptEmbeddedFile(depotPath, readEmbedded) is { } keptEmbedded)
             return keptEmbedded;
 
         if (_fileCache.TryGetValue(depotPath, out var cached))
+        {
+            KeepEmbeddedFiles(cached); // again, after a project file changed and they were dropped
             return cached;
+        }
 
         CR2WFile? result = null;
 
@@ -3340,6 +3353,7 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
     private void ClearFileCache()
     {
         _fileCache.Clear();
+        _readEmbeddedFiles.Clear();
         _templateCache.Clear();
         _textureCache.Clear();
     }
@@ -4366,7 +4380,7 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
                 }
 
                 // Project files must override the archive. Try the project first.
-                var setupFile = GetProjectOrDepotFile(mlsRef.DepotPath);
+                var setupFile = GetReferencedFile(mlsRef.DepotPath, mlsRef.Flags);
                 if (setupFile is not { RootChunk: Multilayer_Setup mls })
                 {
                     goto DiffuseMaps;
@@ -4398,7 +4412,7 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
                     goto DiffuseMaps;
                 }
 
-                var maskFile = GetProjectOrDepotFile(mlmRef.DepotPath);
+                var maskFile = GetReferencedFile(mlmRef.DepotPath, mlmRef.Flags);
                 if (maskFile is not { RootChunk: Multilayer_Mask mlm })
                 {
                     goto DiffuseMaps;

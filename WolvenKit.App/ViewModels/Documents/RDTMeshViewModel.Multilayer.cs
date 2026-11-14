@@ -773,7 +773,7 @@ public partial class RDTMeshViewModel
         }
 
         var materialLabel = SubmeshComponent.StripMeshPrefix(material.Name) ?? material.Name;
-        if (GetProjectOrDepotFile(mlsRef.DepotPath)?.RootChunk is not Multilayer_Setup mls)
+        if (GetReferencedFile(mlsRef.DepotPath, mlsRef.Flags)?.RootChunk is not Multilayer_Setup mls)
         {
             WarnMissingFile("mlsetup", mlsRef.DepotPath, materialLabel);
             return false;
