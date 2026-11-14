@@ -51,12 +51,19 @@ public abstract partial class DocumentViewModel : PaneViewModel, IDocumentViewMo
     /// </summary>
     public event EventHandler? ContentModified;
 
+    /// <summary>
+    /// Counts the edits (<see cref="SetIsDirty"/>(true) calls), so a view that stopped following
+    /// <see cref="ContentModified"/> can tell later whether the document changed meanwhile.
+    /// </summary>
+    public int ContentVersion { get; private set; }
+
     public void SetIsDirty(bool b)
     {
         IsDirty = b;
         Header = GetHeader();
         if (b)
         {
+            ContentVersion++;
             ContentModified?.Invoke(this, EventArgs.Empty);
         }
     }

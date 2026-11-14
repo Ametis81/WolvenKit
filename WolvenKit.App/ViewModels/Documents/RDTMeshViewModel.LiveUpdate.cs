@@ -19,6 +19,9 @@ namespace WolvenKit.App.ViewModels.Documents;
 /// Changes are collected for a moment (typing in a field changes the value on every key),
 /// then one generation runs; unchanged materials stay cached (bake stamps include values
 /// and file times), so only the edited ones are rebuilt.
+/// Only while the preview tab is shown: switching to another tab of the document unhooks the
+/// document and the folder watcher; coming back catches up with what changed meanwhile
+/// (document edits, project files written since).
 /// </summary>
 public partial class RDTMeshViewModel
 {
@@ -46,6 +49,70 @@ public partial class RDTMeshViewModel
     private SynchronizationContext? _liveContext;
     private volatile bool _liveDocumentChanged;
     private readonly ConcurrentQueue<string> _liveChangedFiles = new();
+
+    // Paused while the preview tab is not shown.
+    private bool _livePaused;
+    private DateTime _livePausedAt;
+    private int _livePausedVersion;
+
+    /// <summary>The preview tab was left: stop following edits (no handlers, no watcher).</summary>
+    private void PauseLiveMaterialUpdate()
+    {
+        if (!_liveHooked || _disposed)
+        {
+            return;
+        }
+
+        StopLiveMaterialUpdate();
+        _liveHooked = false;
+        _livePaused = true;
+        _livePausedAt = DateTime.Now;
+        _livePausedVersion = (Parent as DocumentViewModel)?.ContentVersion ?? 0;
+    }
+
+    /// <summary>
+    /// The preview tab is shown again: hook up again and update for what changed meanwhile
+    /// (document edits, project files the materials were read from that were written since).
+    /// </summary>
+    private void ResumeLiveMaterialUpdate()
+    {
+        if (!_livePaused || _disposed)
+        {
+            return;
+        }
+
+        _livePaused = false;
+        EnsureLiveMaterialUpdate();
+
+        if ((Parent as DocumentViewModel)?.ContentVersion is { } version && version != _livePausedVersion)
+        {
+            _liveDocumentChanged = true;
+        }
+
+        if (_liveModDirectory != null)
+        {
+            foreach (var key in _fileCache.Keys)
+            {
+                try
+                {
+                    var fullPath = Path.Combine(_liveModDirectory, key.GetResolvedText() ?? "");
+                    if (File.Exists(fullPath) && File.GetLastWriteTime(fullPath) > _livePausedAt)
+                    {
+                        _liveChangedFiles.Enqueue(fullPath);
+                    }
+                }
+                catch
+                {
+                    // not a usable path: not a project file
+                }
+            }
+        }
+
+        if (_liveDocumentChanged || !_liveChangedFiles.IsEmpty)
+        {
+            ScheduleLiveUpdate();
+        }
+    }
 
     /// <summary>Hooks the document and the project folder once, after the first generation.</summary>
     private void EnsureLiveMaterialUpdate()
@@ -145,7 +212,7 @@ public partial class RDTMeshViewModel
     /// <summary>(Re)starts the delay; the update runs on the UI thread when it expires.</summary>
     private void ScheduleLiveUpdate()
     {
-        if (!LiveMaterialUpdate || !_materialsGenerated || _disposed)
+        if (!LiveMaterialUpdate || !_materialsGenerated || _disposed || _livePaused)
         {
             return;
         }
@@ -162,7 +229,7 @@ public partial class RDTMeshViewModel
 
     private async Task RunLiveUpdateAsync()
     {
-        if (_disposed || !LiveMaterialUpdate)
+        if (_disposed || !LiveMaterialUpdate || _livePaused)
         {
             return;
         }
