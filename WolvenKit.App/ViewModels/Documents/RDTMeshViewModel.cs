@@ -648,7 +648,7 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
     {
         if (element is GroupModel3DExt groupModel)
         {
-            if (groupModel.Text != null && groupModel.Text.StartsWith("collisionNode_"))
+            if (groupModel.Name != null && groupModel.Name.StartsWith("collisionNode_"))
             {
                 groupModel.IsRendering = _isCollisionRendered;
                 return;
@@ -660,7 +660,7 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
             }
         }
 
-        if (element is not SubmeshComponent submesh || submesh.Text == null || !submesh.Text.StartsWith("collisionNode_"))
+        if (element is not SubmeshComponent submesh || submesh.Name == null || !submesh.Name.StartsWith("collisionNode_"))
         {
             return;
         }
@@ -9045,6 +9045,7 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
 
             _sectorFilesPrefetched = true;
             _soloSector = RenderSector(wss, Appearances[0]);
+            _soloSector.Text = Path.GetFileNameWithoutExtension(Parent.ContentId);
             FillSoloSectorVariants(_soloSector);
             ReleaseSectorMeshFiles();
 
@@ -10114,7 +10115,9 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
             Name = "",
             Text = "",
         };
-        foreach (var group in groups)
+        // Nodes in folders by type, labelled with their index (see SectorTree)
+        LabelSectorNodes(groups, data);
+        foreach (var group in GroupSectorNodesByType(groups))
         {
             element.Children.Add(group);
         }

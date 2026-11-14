@@ -29,6 +29,9 @@ namespace WolvenKit.Views.Documents
 
             NodeTreeGrid.NodeExpanded += NodeTreeGrid_OnNodeToggled;
             NodeTreeGrid.NodeCollapsed += NodeTreeGrid_OnNodeToggled;
+            // a new scene (appearance, sector) gets the search that is typed in
+            NodeTreeGrid.ItemsSourceChanged += (_, _) =>
+                Dispatcher.InvokeAsync(() => ApplyNodeSearch(NodeSearchBox.Text?.Trim()), DispatcherPriority.Background);
 
             this.WhenActivated(disposables =>
             {
@@ -45,6 +48,9 @@ namespace WolvenKit.Views.Documents
                                 // A sector's root holds every node of it (thousands): opened on
                                 // demand, or by a click in the viewport, not on every open.
                                 NodeTreeGrid.SetCurrentValue(SfTreeGrid.AutoExpandModeProperty, AutoExpandMode.None);
+
+                                // node type column (its funnel picks the kinds of nodes to show)
+                                NodeTypeColumn.IsHidden = false;
                             }
 
                             NodeTreeGrid.SetBinding(Syncfusion.UI.Xaml.TreeGrid.SfTreeGrid.ItemsSourceProperty,
@@ -771,6 +777,88 @@ namespace WolvenKit.Views.Documents
                 new((float)up.X, (float)up.Y, (float)up.Z),
                 0);
             UpdateFollowLights();
+        }
+
+        // ---- Node tree: search ----
+        // Keeps the rows whose name, node index or path contains the text, with their parents
+        // (the tree's FilterLevel) and everything under them.
+
+        private DispatcherTimer _nodeSearchTimer;
+        private HashSet<object> _nodeSearchMatches;
+
+        private void NodeSearchBox_OnTextChanged(object sender, TextChangedEventArgs e)
+        {
+            _nodeSearchTimer ??= new DispatcherTimer(TimeSpan.FromMilliseconds(250), DispatcherPriority.Background,
+                (_, _) =>
+                {
+                    _nodeSearchTimer.Stop();
+                    ApplyNodeSearch(NodeSearchBox.Text?.Trim());
+                }, Dispatcher);
+            _nodeSearchTimer.Stop();
+            _nodeSearchTimer.Start();
+        }
+
+        private void ApplyNodeSearch(string text)
+        {
+            if (NodeTreeGrid.View is not { } view)
+            {
+                return;
+            }
+
+            if (string.IsNullOrEmpty(text))
+            {
+                _nodeSearchMatches = null;
+                view.Filter = null;
+                view.RefreshFilter();
+                return;
+            }
+
+            var matches = new HashSet<object>(ReferenceEqualityComparer.Instance);
+            if (ViewModel?.SelectedModelGroup is { } roots)
+            {
+                foreach (var root in roots)
+                {
+                    CollectNodeSearchMatches(root, text, false, matches);
+                }
+            }
+
+            _nodeSearchMatches = matches;
+            view.Filter = item => _nodeSearchMatches?.Contains(item) != false;
+            view.RefreshFilter();
+        }
+
+        private static void CollectNodeSearchMatches(object element, string text, bool underMatch, HashSet<object> matches)
+        {
+            var match = underMatch || NodeMatches(element, text);
+            if (match)
+            {
+                matches.Add(element);
+            }
+
+            if (element is HelixToolkit.Wpf.SharpDX.GroupModel3D group)
+            {
+                foreach (var child in group.Children)
+                {
+                    CollectNodeSearchMatches(child, text, match, matches);
+                }
+            }
+        }
+
+        private static bool NodeMatches(object element, string text)
+        {
+            static bool Has(string value, string text) =>
+                !string.IsNullOrEmpty(value) && value.Contains(text, StringComparison.OrdinalIgnoreCase);
+
+            return element switch
+            {
+                WolvenKit.App.Models.MeshComponent mesh =>
+                    Has(mesh.Text, text) || Has(mesh.Name, text) || mesh.WorldNodeIndex == text ||
+                    Has(mesh.DepotPath.GetResolvedText(), text) || Has(mesh.WorldNodeType, text),
+                WolvenKit.App.Models.GroupModel3DExt group => Has(group.Text, text) || Has(group.Name, text),
+                WolvenKit.App.Models.SubmeshComponent submesh => Has(submesh.Text, text) || Has(submesh.Name, text),
+                HelixToolkit.Wpf.SharpDX.Element3D other => Has(other.Name, text),
+                _ => false,
+            };
         }
 
         // ---- Node tree: expand / collapse with modifiers, as in Blender's outliner ----
