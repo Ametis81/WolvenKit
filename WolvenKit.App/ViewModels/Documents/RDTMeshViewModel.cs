@@ -867,79 +867,90 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
         return group;
     }
 
+    /// <summary>
+    /// The entity's mesh components, flat, as the Blender add-on lists them. Rigs are not tree
+    /// nodes (their bone chains drew nothing and hid nothing useful): a component bound to a
+    /// bone or slot is placed from the bone's pose and the rig's transform, and its binding is
+    /// written next to its name unless it is the base rig (root / deformations).
+    /// </summary>
     private List<Element3D> AddMeshesToRiggedGroups(Appearance app)
     {
-        var groups = new Dictionary<string, GroupModel3D>();
         var modelGroups = new List<Element3D>();
-        foreach (var (name, rig) in Rigs)
-        {
-            if (name is "deformations" or "root")
-            {
-                continue;
-            }
-            var group = new GroupModel3DExt()
-            {
-                Name = $"{rig.Name}",
-                Text = $"{rig.Name}",
-                Transform = new MatrixTransform3D(rig.Matrix.ToMatrix3D())
-            };
-            group.Children.Add(GroupFromRigBone(rig, rig.Bones[0], groups));
-            groups.Add(name, group);
-            modelGroups.Add(group);
-        }
-
         foreach (var model in app.BindableModels)
         {
             var group = GroupFromModel(model);
-
-            if (model.BindName is null || model.SlotName is null or "None")
+            if (EntityPlacementMatrix(model) is { } placement)
             {
-                modelGroups.Add(group);
-                continue;
+                AppendTransform(group, placement);
             }
 
-            if (_slotSets.TryGetValue(model.BindName, out var slotBind))
+            if (BindingLabel(model) is { } label)
             {
-                if (model.SlotName != null && slotBind.Slots.TryGetValue(model.SlotName, out var slot) &&
-                    groups.TryGetValue(slotBind.BindName + ":" + slot, out var boneGroup))
-                {
-                    // the slot sits at an offset from its bone
-                    if (slotBind.SlotTransforms.TryGetValue(model.SlotName, out var slotMatrix))
-                    {
-                        AppendTransform(group, slotMatrix);
-                    }
+                group.Text = $"{model.Name}  ({label})";
+            }
 
-                    boneGroup.Children.Add(group);
-                }
-                else
-                {
-                    // The bone is not drawn (rig skipped or missing): place the component from the
-                    // rig's bind pose, or at the slot component. It used to be left out.
-                    AppendTransform(group, BindingMatrix(model.BindName, model.SlotName) ?? Matrix3D.Identity);
-                    modelGroups.Add(group);
-                }
-            }
-            else if (groups.TryGetValue(model.BindName + ":" + model.SlotName, out var rigBoneGroup))
-            {
-                // bound straight to a bone of a drawn rig
-                rigBoneGroup.Children.Add(group);
-            }
-            else if (BindingMatrix(model.BindName, model.SlotName) is { } boneMatrix)
-            {
-                // bound to a bone of a rig that is not drawn
-                AppendTransform(group, boneMatrix);
-                modelGroups.Add(group);
-            }
-            else if (groups.TryGetValue(model.BindName, out var modelBind))
-            {
-                modelBind.Children.Add(group);
-            }
-            else
-            {
-                modelGroups.Add(group);
-            }
+            modelGroups.Add(group);
         }
+
         return modelGroups;
+    }
+
+    /// <summary>Rigs every entity has; bindings to them are not worth a label.</summary>
+    private static bool IsBaseRig(string? name) => name is null or "" or "root" or "deformations";
+
+    /// <summary>Where a component bound to a rig, a bone or a slot goes, or null when nowhere special.</summary>
+    private Matrix3D? EntityPlacementMatrix(LoadableModel model)
+    {
+        if (model.BindName is not { } bind)
+        {
+            return null;
+        }
+
+        // The rigs that used to be drawn as tree groups placed their bones with their transform.
+        Matrix3D RigMatrix(string? rigName) =>
+            !IsBaseRig(rigName) && rigName != null && Rigs.TryGetValue(rigName, out var rig)
+                ? rig.Matrix.ToMatrix3D()
+                : Matrix3D.Identity;
+
+        if (model.SlotName is null or "None")
+        {
+            return null;
+        }
+
+        if (_slotSets.TryGetValue(bind, out var slotSet))
+        {
+            return BindingMatrix(bind, model.SlotName) is { } slotMatrix
+                ? slotMatrix * (slotSet.Slots.ContainsKey(model.SlotName) ? RigMatrix(slotSet.BindName) : Matrix3D.Identity)
+                : null;
+        }
+
+        if (BoneBindMatrix(bind, model.SlotName) is { } bone)
+        {
+            return bone * RigMatrix(bind);
+        }
+
+        return Rigs.ContainsKey(bind) && !IsBaseRig(bind) ? RigMatrix(bind) : null;
+    }
+
+    /// <summary>"skin: face_rig", "bind: weapon_slots · Hand_R"... or null for the base rig.</summary>
+    private static string? BindingLabel(LoadableModel model)
+    {
+        var parts = new List<string>();
+        if (!IsBaseRig(model.SkinName))
+        {
+            parts.Add($"skin: {model.SkinName}");
+        }
+
+        if (!IsBaseRig(model.BindName) && model.BindName != model.SkinName)
+        {
+            parts.Add(model.SlotName is null or "None" ? $"bind: {model.BindName}" : $"bind: {model.BindName} · {model.SlotName}");
+        }
+        else if (!IsBaseRig(model.BindName) && model.SlotName is not (null or "None"))
+        {
+            parts.Add($"bone: {model.SlotName}");
+        }
+
+        return parts.Count > 0 ? string.Join(", ", parts) : null;
     }
 
     private IEnumerable<LoadableModel> LoadPartsValues(appearanceAppearanceDefinition appDef)
@@ -1182,6 +1193,11 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
             slotName = ehtb.SlotName;
         }
 
+        var skinName = epc is entISkinTargetComponent { Skinning: var skinning } &&
+                       skinning?.GetValue() is entSkinningBinding skin
+            ? skin.BindName.GetResolvedText()
+            : null;
+
         matrix.Scale(ToScaleVector3D(scale));
 
         var materials = new Dictionary<string, Material>();
@@ -1296,6 +1312,7 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
             IsEnabled = enabled,
             BindName = bindName,
             SlotName = slotName,
+            SkinName = skinName,
             ChunkMask = chunkMask,
             ChunkList = chunkList,
             EnabledChunks = enabledChunks,
