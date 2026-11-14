@@ -27,6 +27,9 @@ namespace WolvenKit.Views.Documents
         {
             InitializeComponent();
 
+            NodeTreeGrid.NodeExpanded += NodeTreeGrid_OnNodeToggled;
+            NodeTreeGrid.NodeCollapsed += NodeTreeGrid_OnNodeToggled;
+
             this.WhenActivated(disposables =>
             {
                 if (DataContext is RDTMeshViewModel vm)
@@ -768,6 +771,67 @@ namespace WolvenKit.Views.Documents
                 new((float)up.X, (float)up.Y, (float)up.Z),
                 0);
             UpdateFollowLights();
+        }
+
+        // ---- Node tree: expand / collapse with modifiers, as in Blender's outliner ----
+        // Shift: the node's whole branch. Ctrl: its siblings too. Ctrl+Shift: the siblings' branches.
+
+        private bool _togglingNodes;
+
+        private void NodeTreeGrid_OnNodeToggled(object sender, EventArgs e)
+        {
+            var node = e switch
+            {
+                NodeExpandedEventArgs expanded => expanded.Node,
+                NodeCollapsedEventArgs collapsed => collapsed.Node,
+                _ => null,
+            };
+            var modifiers = Keyboard.Modifiers;
+            // Only the user's own clicks / keys in the tree: a viewport click with Shift opens
+            // the tree to the picked mesh and must not open whole branches.
+            if (_togglingNodes || node == null ||
+                (modifiers & (ModifierKeys.Shift | ModifierKeys.Control)) == 0 ||
+                !(NodeTreeGrid.IsMouseOver || NodeTreeGrid.IsKeyboardFocusWithin))
+            {
+                return;
+            }
+
+            var expand = node.IsExpanded;
+            var branch = (modifiers & ModifierKeys.Shift) != 0;
+            IEnumerable<TreeNode> targets = (modifiers & ModifierKeys.Control) != 0
+                ? (node.ParentNode?.ChildNodes ?? (IEnumerable<TreeNode>)NodeTreeGrid.View.Nodes).ToList()
+                : [node];
+
+            _togglingNodes = true;
+            try
+            {
+                foreach (var target in targets)
+                {
+                    if (branch)
+                    {
+                        if (expand)
+                        {
+                            NodeTreeGrid.ExpandAllNodes(target);
+                        }
+                        else
+                        {
+                            NodeTreeGrid.CollapseAllNodes(target);
+                        }
+                    }
+                    else if (expand && !target.IsExpanded)
+                    {
+                        NodeTreeGrid.ExpandNode(target);
+                    }
+                    else if (!expand && target.IsExpanded)
+                    {
+                        NodeTreeGrid.CollapseNode(target);
+                    }
+                }
+            }
+            finally
+            {
+                _togglingNodes = false;
+            }
         }
 
         private void PreviewCamera_OnSelectionChanged(object sender, SelectionChangedEventArgs e) =>
