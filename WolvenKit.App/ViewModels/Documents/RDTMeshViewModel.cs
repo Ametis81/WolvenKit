@@ -888,9 +888,9 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
                 AppendTransform(group, placement);
             }
 
-            if (BindingLabel(model) is { } label)
+            if (BindingLabel(model) is { } label && group is GroupModel3DExt named)
             {
-                group.Text = $"{model.Name}  ({label})";
+                named.Text = $"{model.Name}  ({label})";
             }
 
             modelGroups.Add(group);
