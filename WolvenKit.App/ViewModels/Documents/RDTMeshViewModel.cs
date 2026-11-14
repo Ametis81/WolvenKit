@@ -311,7 +311,7 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
             }
             else if (sw.ElapsedMilliseconds > 200)
             {
-                _loggerService.Debug($"[ML shader] effects ready in {sw.ElapsedMilliseconds} ms");
+                PreviewTrace($"[ML shader] effects ready in {sw.ElapsedMilliseconds} ms");
             }
 
             // The full report (vertex output / pixel input layouts, constant buffer check) only
@@ -4050,7 +4050,7 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
             if (refreshFromDisk || clearCache)
                 Parent?.GetLoggerService()?.Info("All materials loaded!");
             else
-                Parent?.GetLoggerService()?.Debug("Materials updated");
+                PreviewTrace("Materials updated");
             _materialsGenerated = true;
             EnsureLiveMaterialUpdate();
         }
@@ -4317,11 +4317,11 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
                 (File.Exists(filename_bd) || !IsSpeedTreeMaterial(material)) &&
                 (!IsOpaqueSpeedTree(material) || File.Exists(filename_bd + ".opaque")))
             {
-                Parent?.GetLoggerService()?.Debug($"[Cache] '{material.Name}' up to date");
+                PreviewTrace($"[Cache] '{material.Name}' up to date");
                 return;
             }
 
-            Parent?.GetLoggerService()?.Debug($"Baking material: {material.Name}");
+            PreviewTrace($"Baking material: {material.Name}");
 
             // Something changed (or no cache yet): drop old outputs so every branch bakes again.
             foreach (var f in new[] { filename_bd, filename_bn, filename_rm, emissivePng })
@@ -4386,10 +4386,6 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
                             { if (File.Exists(f)) File.Delete(f); }
                             catch { /* ignore */ }
                         }
-#if DEBUG
-                        Parent?.GetLoggerService()?.Info(
-                            $"[Cache] '{material.Name}' mlsetup changed — re-baking");
-#endif
                     }
                 }
 
@@ -4987,17 +4983,6 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
                         TryGetLevels(mllt.Overrides.MetalLevelsOut, layer.MetalLevelsOut, mllt.DefaultOverrides?.MetalLevelsOut, x => x.N, x => x.V,
                                      out float metalOutScale, out float metalOutOffset);
 
-#if DEBUG
-                        // Temporary debug logging for levels (helps catch extreme foil values and wrong fallbacks)
-                        System.Diagnostics.Debug.WriteLine(
-                            $"[Levels] RoughIn: {roughInScale:F3},{roughInOffset:F3}  RoughOut: {roughOutScale:F3},{roughOutOffset:F3}");
-                        System.Diagnostics.Debug.WriteLine(
-                            $"[Levels] MetalIn: {metalInScale:F3},{metalInOffset:F3}  MetalOut: {metalOutScale:F3},{metalOutOffset:F3}");
-                        if (Math.Abs(roughInScale) > 5f || Math.Abs(metalInScale) > 5f)
-                        {
-                            System.Diagnostics.Debug.WriteLine("[Levels] WARNING: extreme scale detected (possible foil / strong contrast)");
-                        }
-#endif
 
                         Bitmap? roughTexBmp = null;
                         Bitmap? metalTexBmp = null;
@@ -5008,9 +4993,6 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
                             roughTexBmp = await GetTex(mllt.RoughnessTexture.DepotPath, flipY: true, tile: effectiveMatTile);
                             if (roughTexBmp == null)
                             {
-#if DEBUG
-                                System.Diagnostics.Debug.WriteLine($"[Tex] Failed to load roughness: {mllt.RoughnessTexture.DepotPath}");
-#endif
                             }
                         }
 
@@ -5019,9 +5001,6 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
                             metalTexBmp = await GetTex(mllt.MetalnessTexture.DepotPath, flipY: true, tile: effectiveMatTile);
                             if (metalTexBmp == null)
                             {
-#if DEBUG
-                                System.Diagnostics.Debug.WriteLine($"[Tex] Failed to load metalness: {mllt.MetalnessTexture.DepotPath}");
-#endif
                             }
                         }
 
@@ -5145,10 +5124,6 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
                                 var hasRoughPtr = roughPtr != null;
                                 var hasMetalPtr = metalPtr != null;
 
-#if DEBUG
-                                System.Diagnostics.Debug.WriteLine(
-                                    $"[TexFlags] roughExists={hasRoughPtr} metalExists={hasMetalPtr} sameRmPath={sameRmPath}");
-#endif
 
                                 Parallel.For(0, maxHeight, y =>
                                 {
@@ -7251,9 +7226,6 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
                                     if (bmpSource.CanFreeze && !bmpSource.IsFrozen)
                                         bmpSource.Freeze();
                                     alphaBmp = BitmapSourceToBitmap(bmpSource);
-#if DEBUG
-                                    Parent?.GetLoggerService()?.Info($"[Hair] Loaded alpha from {key} for {material?.Name}");
-#endif
                                     break;
                                 }
                             }
@@ -7264,7 +7236,7 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
                     {
                         // Cap materials (hat hair, beard) often bake alpha from the diffuse itself.
                         // Missing Strand_Alpha is expected, not an error.
-                        Parent?.GetLoggerService()?.Debug($"[Hair] Cap material '{material?.Name}' has no MaskTexture / Strand_Alpha");
+                        PreviewTrace($"[Hair] Cap material '{material?.Name}' has no MaskTexture / Strand_Alpha");
                     }
 
                     // === Haircard colour (not for cap) ===
@@ -7321,10 +7293,6 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
                                 g.DrawImage(colorBmp, 0, 0, targetW, targetH);
                             colorBmp.Dispose();
                             colorBmp = resizedColor;
-#if DEBUG
-                            Parent?.GetLoggerService()?.Info(
-                                $"[Hair] Cap '{material?.Name}' color resized to {targetW}x{targetH}");
-#endif
                         }
 
                         // Gradient mixes with DiffuseTexture (or white base), not with the mask
@@ -7462,36 +7430,6 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
                                 alphaBmp!.UnlockBits(alphaData);
                         }
 
-#if DEBUG
-                        // Debug: report alpha stats for hair/cap so we can see if coverage was written
-                        if (isCapMat)
-                        {
-                            int minA = 255, maxA = 0, sumA = 0, count = 0;
-                            var dbgRect = new Rectangle(0, 0, colorBmp.Width, colorBmp.Height);
-                            var dbgData = colorBmp.LockBits(dbgRect, ImageLockMode.ReadOnly, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
-                            try
-                            {
-                                unsafe
-                                {
-                                    byte* p = (byte*)dbgData.Scan0;
-                                    int st = dbgData.Stride;
-                                    for (int yy = 0; yy < colorBmp.Height; yy += 4)
-                                        for (int xx = 0; xx < colorBmp.Width; xx += 4)
-                                        {
-                                            int o = yy * st + xx * 4;
-                                            int aa = p[o + 3];
-                                            if (aa < minA) minA = aa;
-                                            if (aa > maxA) maxA = aa;
-                                            sumA += aa;
-                                            count++;
-                                        }
-                                }
-                            }
-                            finally { colorBmp.UnlockBits(dbgData); }
-                            Parent?.GetLoggerService()?.Info(
-                                $"[Hair] Cap '{material?.Name}' alpha min={minA} max={maxA} avg={(count > 0 ? sumA / count : 0)}");
-                        }
-#endif
 
                         SavePngAtomic(colorBmp, filename_bd);
                         colorBmp.Dispose();
@@ -8139,10 +8077,6 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
                         }
                     }
 
-#if DEBUG
-                    Parent?.GetLoggerService()?.Info(
-                        $"[Decal] RM '{material?.Name}' metal={metalBmp?.Width}x{metalBmp?.Height} rough={roughBmp?.Width}x{roughBmp?.Height} → {w}x{h}");
-#endif
 
                     if (roughBmp != null || metalBmp != null || w > 1)
                     {
@@ -8940,7 +8874,7 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
         if (_sectorFirstFrame is { } sw)
         {
             _sectorFirstFrame = null;
-            _loggerService.Debug($"[Sector] files read in {_sectorReadMs} ms ({_sectorReadDetail}), built in {_sectorBuildMs} ms, " +
+            PreviewTrace($"[Sector] files read in {_sectorReadMs} ms ({_sectorReadDetail}), built in {_sectorBuildMs} ms, " +
                                  $"first frame {sw.ElapsedMilliseconds} ms later");
         }
     }
@@ -9025,7 +8959,7 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
             {
                 if (_slowReads.Count > 0)
                 {
-                    _loggerService.Debug("[Sector] slowest files: " + string.Join(", ", _slowReads
+                    PreviewTrace("[Sector] slowest files: " + string.Join(", ", _slowReads
                         .OrderByDescending(r => r.Ms).Take(8)
                         .Select(r => $"{Path.GetFileName(r.Path)} {r.Ms} ms")));
                 }
@@ -9094,7 +9028,7 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
 
         if (released > 0)
         {
-            _loggerService.Debug($"[Sector] released {released} mesh files from the cache");
+            PreviewTrace($"[Sector] released {released} mesh files from the cache");
         }
     }
 
