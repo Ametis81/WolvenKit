@@ -6,6 +6,7 @@ using System.Drawing.Imaging;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
+using WolvenKit.App.Services;
 
 namespace WolvenKit.App.ViewModels.Documents;
 
@@ -224,64 +225,107 @@ public partial class RDTMeshViewModel
     public bool CancelSavingImages { get; set; }
 
     // ---- Panel sections ----
-    // Expanded / collapsed state of the side panel sections, shared by all preview tabs for
-    // the session: whoever never makes icons collapses that section once.
+    // Expanded / collapsed state of the side panel sections: shared by all preview tabs and
+    // kept between sessions (previewSections.json in the app data folder), so whoever never
+    // makes icons collapses that section once. All start open except Shader Debug. Shader
+    // Debug keeps one state for sectors and one for meshes / entities, so opening it to check
+    // terrain does not leave it open on every mesh (or the other way).
 
-    private static bool s_materialsSectionExpanded = true;
-    private static bool s_imageSectionExpanded = true;
-    private static bool s_cameraSectionExpanded = true;
-    private static bool s_debugSectionExpanded;
-    private static bool s_exportSectionExpanded = true;
-    private static bool s_sectorSectionExpanded = true;
+    private static readonly Dictionary<string, bool> s_sectionDefaults = new()
+    {
+        ["Materials"] = true,
+        ["Image"] = true,
+        ["Camera"] = true,
+        ["Export"] = true,
+        ["Sector"] = true,
+        ["Debug"] = false,
+        ["SectorDebug"] = false,
+    };
+
+    private static Dictionary<string, bool>? s_sections;
+
+    private static string SectionsPath => Path.Combine(ISettingsManager.GetAppData(), "previewSections.json");
+
+    private bool GetSection(string name)
+    {
+        if (s_sections == null)
+        {
+            s_sections = new Dictionary<string, bool>(s_sectionDefaults);
+            try
+            {
+                if (File.Exists(SectionsPath) &&
+                    System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, bool>>(File.ReadAllText(SectionsPath)) is { } saved)
+                {
+                    foreach (var (key, value) in saved)
+                    {
+                        s_sections[key] = value;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Parent?.GetLoggerService()?.Warning($"[Preview] panel section states could not be read: {ex.Message}");
+            }
+        }
+
+        return s_sections.TryGetValue(name, out var expanded) ? expanded : s_sectionDefaults.GetValueOrDefault(name, true);
+    }
+
+    private void SetSection(string name, bool value, [System.Runtime.CompilerServices.CallerMemberName] string? property = null)
+    {
+        if (GetSection(name) == value)
+        {
+            return;
+        }
+
+        s_sections![name] = value;
+        OnPropertyChanged(property);
+        try
+        {
+            var temp = SectionsPath + ".tmp";
+            File.WriteAllText(temp, System.Text.Json.JsonSerializer.Serialize(s_sections));
+            File.Move(temp, SectionsPath, true);
+        }
+        catch (Exception ex)
+        {
+            Parent?.GetLoggerService()?.Warning($"[Preview] panel section states could not be saved: {ex.Message}");
+        }
+    }
 
     public bool IsSectorSectionExpanded
     {
-        get => s_sectorSectionExpanded;
-        set => SetProperty(ref s_sectorSectionExpanded, value);
+        get => GetSection("Sector");
+        set => SetSection("Sector", value);
     }
 
     public bool IsExportSectionExpanded
     {
-        get => s_exportSectionExpanded;
-        set => SetProperty(ref s_exportSectionExpanded, value);
+        get => GetSection("Export");
+        set => SetSection("Export", value);
     }
 
     public bool IsMaterialsSectionExpanded
     {
-        get => s_materialsSectionExpanded;
-        set => SetProperty(ref s_materialsSectionExpanded, value);
+        get => GetSection("Materials");
+        set => SetSection("Materials", value);
     }
 
     public bool IsImageSectionExpanded
     {
-        get => s_imageSectionExpanded;
-        set => SetProperty(ref s_imageSectionExpanded, value);
+        get => GetSection("Image");
+        set => SetSection("Image", value);
     }
 
     public bool IsCameraSectionExpanded
     {
-        get => s_cameraSectionExpanded;
-        set => SetProperty(ref s_cameraSectionExpanded, value);
+        get => GetSection("Camera");
+        set => SetSection("Camera", value);
     }
-
-    // Shader Debug: collapsed by default, and kept apart for sectors and for meshes / entities,
-    // so opening it to check terrain does not leave it open on every mesh (or the other way).
-    private static bool s_sectorDebugSectionExpanded;
 
     public bool IsDebugSectionExpanded
     {
-        get => IsObjectPreview ? s_debugSectionExpanded : s_sectorDebugSectionExpanded;
-        set
-        {
-            if (IsObjectPreview)
-            {
-                SetProperty(ref s_debugSectionExpanded, value);
-            }
-            else
-            {
-                SetProperty(ref s_sectorDebugSectionExpanded, value);
-            }
-        }
+        get => GetSection(IsObjectPreview ? "Debug" : "SectorDebug");
+        set => SetSection(IsObjectPreview ? "Debug" : "SectorDebug", value);
     }
 
     // ---- Camera for icons ----
