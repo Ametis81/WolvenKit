@@ -80,6 +80,8 @@ public sealed class SectorObject
 
     public string SharedText => SharedCount > 1 ? $"×{SharedCount}" : "";
 
+    public string HiddenText => IsHidden ? "hidden" : "";
+
     /// <summary>What a removal in an .xl file needs: the class, the indices and where the object is.</summary>
     public string Summary
     {

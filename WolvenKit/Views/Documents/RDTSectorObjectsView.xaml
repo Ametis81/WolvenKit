@@ -66,6 +66,11 @@
             CanUserResizeColumns="True"
             HorizontalScrollBarVisibility="Auto"
             GridLinesVisibility="None"
+            Background="Transparent"
+            RowBackground="Transparent"
+            AlternatingRowBackground="Transparent"
+            Foreground="{DynamicResource ContentForeground}"
+            BorderThickness="0"
             EnableRowVirtualization="True"
             VirtualizingPanel.IsVirtualizing="True"
             VirtualizingPanel.IsVirtualizingWhenGrouping="True"
@@ -133,10 +138,44 @@
                 </GroupStyle>
             </DataGrid.GroupStyle>
 
+            <DataGrid.ColumnHeaderStyle>
+                <Style TargetType="DataGridColumnHeader">
+                    <Setter Property="Background" Value="{DynamicResource ContentBackgroundAlt}" />
+                    <Setter Property="Foreground" Value="{DynamicResource ContentForeground}" />
+                    <Setter Property="BorderBrush" Value="{DynamicResource BorderAlt}" />
+                    <Setter Property="BorderThickness" Value="0,0,1,1" />
+                    <Setter Property="Padding" Value="6,2" />
+                </Style>
+            </DataGrid.ColumnHeaderStyle>
+
+            <DataGrid.CellStyle>
+                <Style TargetType="DataGridCell">
+                    <Setter Property="BorderThickness" Value="0" />
+                    <Setter Property="Padding" Value="4,0" />
+                    <Setter Property="Background" Value="Transparent" />
+                    <Setter Property="Foreground" Value="{Binding Foreground, RelativeSource={RelativeSource AncestorType=DataGridRow}}" />
+                    <Style.Triggers>
+                        <!-- the row shows the selection, not the system highlight of the cell -->
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter Property="Background" Value="Transparent" />
+                            <Setter Property="Foreground" Value="{Binding Foreground, RelativeSource={RelativeSource AncestorType=DataGridRow}}" />
+                        </Trigger>
+                    </Style.Triggers>
+                </Style>
+            </DataGrid.CellStyle>
+
             <DataGrid.RowStyle>
                 <Style TargetType="DataGridRow">
                     <Setter Property="ToolTip" Value="{Binding Summary}" />
+                    <Setter Property="Background" Value="Transparent" />
+                    <Setter Property="Foreground" Value="{DynamicResource ContentForeground}" />
                     <Style.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter Property="Background" Value="{DynamicResource ContentBackgroundAlt}" />
+                        </Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter Property="Background" Value="{DynamicResource BorderAlt}" />
+                        </Trigger>
                         <DataTrigger Binding="{Binding IsHidden}" Value="True">
                             <Setter Property="FontStyle" Value="Italic" />
                             <Setter Property="Foreground" Value="{DynamicResource ContentForegroundAlt}" />
@@ -174,10 +213,10 @@
                     Width="190"
                     Header="Flags"
                     Binding="{Binding Categories}" />
-                <DataGridCheckBoxColumn
+                <DataGridTextColumn
                     Width="60"
                     Header="Hidden"
-                    Binding="{Binding IsHidden, Mode=OneWay}" />
+                    Binding="{Binding HiddenText}" />
                 <DataGridTextColumn
                     Width="180"
                     Header="Position"
