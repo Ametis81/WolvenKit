@@ -342,6 +342,30 @@
                                            UpdateSourceTrigger=PropertyChanged}"
                             TextTrimming="CharacterEllipsis" />
 
+                        <!-- colour of a multilayer colorScale override (mltemplate entries and their v, mlsetup layers) -->
+                        <Border
+                            Width="{DynamicResource WolvenKitIconMicro}"
+                            Height="{DynamicResource WolvenKitIconMicro}"
+                            Margin="{DynamicResource WolvenKitMarginTinyRight}"
+                            VerticalAlignment="Center"
+                            BorderBrush="{DynamicResource BorderAlt}"
+                            BorderThickness="1"
+                            SnapsToDevicePixels="True"
+                            ToolTip="{Binding PreviewColor, Mode=OneWay}">
+                            <Border.Background>
+                                <SolidColorBrush Color="{Binding PreviewColor, Mode=OneWay, TargetNullValue=Transparent}" />
+                            </Border.Background>
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding PreviewColor, Mode=OneWay}" Value="{x:Null}">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                        </Border>
+
                         <TextBlock
                             Name="PropertyValue"
                             Style="{StaticResource PropertyValueStyle}"
