@@ -192,16 +192,18 @@
                     <Setter Property="ToolTip" Value="{Binding Summary}" />
                     <Setter Property="Background" Value="Transparent" />
                     <Setter Property="Foreground" Value="{DynamicResource ContentForeground}" />
-                    <!-- the selected row gets an accent bar on the left, also when the grid has no focus -->
+                    <!-- the selected row is outlined in the accent colour with a bar on the left, like the
+                         selected row of the file editor's tree, also when the grid has no focus -->
                     <Setter Property="BorderBrush" Value="Transparent" />
-                    <Setter Property="BorderThickness" Value="3,0,0,0" />
+                    <Setter Property="BorderThickness" Value="4,1,1,1" />
                     <Style.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter Property="Background" Value="{DynamicResource ContentBackgroundAlt}" />
                         </Trigger>
                         <Trigger Property="IsSelected" Value="True">
-                            <Setter Property="Background" Value="{DynamicResource BorderAlt}" />
+                            <Setter Property="Background" Value="{DynamicResource ContentBackgroundAlt}" />
                             <Setter Property="BorderBrush" Value="{DynamicResource PrimaryBrush}" />
+                            <Setter Property="FontWeight" Value="SemiBold" />
                         </Trigger>
                         <DataTrigger Binding="{Binding IsHidden}" Value="True">
                             <Setter Property="FontStyle" Value="Italic" />
