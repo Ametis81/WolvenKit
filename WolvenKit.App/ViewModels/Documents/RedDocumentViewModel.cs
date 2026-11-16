@@ -325,6 +325,10 @@ public partial class RedDocumentViewModel : DocumentViewModel, IDisposable
             var tab = _documentTabViewmodelFactory.RDTMeshViewModel(wss, this);
             tab.OnSectorNodeSelected += OnSectorNodeSelected;
             TabItemViewModels.Add(tab);
+
+            var objectsTab = new RDTSectorObjectsViewModel(wss, this);
+            objectsTab.NodeOpenRequested += OnSectorObjectOpenRequested;
+            TabItemViewModels.Add(objectsTab);
         }
         if (cls is worldStreamingBlock wsb)
         {
@@ -374,6 +378,16 @@ public partial class RedDocumentViewModel : DocumentViewModel, IDisposable
 
     private void OnSectorNodeSelected(object? sender, string? e) => _selectedWorldNodeIndex = e;
 
+    // the Objects tab: show the node in the data tab, which selects it when it's shown
+    private void OnSectorObjectOpenRequested(object? sender, int nodeIndex)
+    {
+        _selectedWorldNodeIndex = nodeIndex.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        if (GetMainFile() is { } dataTab)
+        {
+            SelectedTabItemViewModel = dataTab;
+        }
+    }
+
     private void OnPartNameChanged(object sender, EventArgs e)
     {
         if (GetMainFile() is not RDTDataViewModel m || m.Chunks.Count == 0 || m.Chunks[0] is not { ResolvedData: inkTextureAtlas } cvm ||
@@ -403,6 +417,9 @@ public partial class RedDocumentViewModel : DocumentViewModel, IDisposable
                     break;
                 case RDTMeshViewModel meshTab:
                     meshTab.OnSectorNodeSelected -= OnSectorNodeSelected;
+                    break;
+                case RDTSectorObjectsViewModel objectsTab:
+                    objectsTab.NodeOpenRequested -= OnSectorObjectOpenRequested;
                     break;
                 case RDTDataViewModel dataViewModel when !keepRootTab:
                     dataViewModel.OnSectorNodeSelected -= OnSectorNodeSelected;
