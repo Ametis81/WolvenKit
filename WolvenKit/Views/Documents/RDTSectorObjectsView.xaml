@@ -61,7 +61,7 @@
             CanUserAddRows="False"
             CanUserDeleteRows="False"
             IsReadOnly="True"
-            SelectionMode="Single"
+            SelectionMode="Extended"
             HeadersVisibility="Column"
             CanUserResizeColumns="True"
             HorizontalScrollBarVisibility="Auto"
@@ -84,8 +84,16 @@
             <DataGrid.ContextMenu>
                 <ContextMenu>
                     <MenuItem
+                        Header="Show in Sector Preview"
+                        Command="{Binding ShowInPreviewCommand}" />
+                    <MenuItem
                         Header="Show node in the data tab"
                         Command="{Binding OpenInDataCommand}" />
+                    <Separator />
+                    <MenuItem
+                        Header="Copy ArchiveXL removal (.xl)"
+                        ToolTip="streaming / sectors / nodeDeletions for the selected rows: index (nodeData), type, expectedNodes"
+                        Click="CopyXlRemoval_OnClick" />
                     <MenuItem
                         Header="Copy class, indices and position"
                         Command="{Binding CopySummaryCommand}" />
@@ -123,7 +131,10 @@
                             <Setter Property="Template">
                                 <Setter.Value>
                                     <ControlTemplate TargetType="GroupItem">
-                                        <Expander Margin="16,0,0,0" IsExpanded="False">
+                                        <!-- closed, but open while searching -->
+                                        <Expander
+                                            Margin="16,0,0,0"
+                                            IsExpanded="{Binding DataContext.IsFiltering, Mode=OneWay, RelativeSource={RelativeSource AncestorType=DataGrid}}">
                                             <Expander.Header>
                                                 <TextBlock>
                                                     <Run Text="{Binding Name, Mode=OneWay}" />

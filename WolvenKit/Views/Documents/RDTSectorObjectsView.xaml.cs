@@ -44,11 +44,22 @@ namespace WolvenKit.Views.Documents
 
         private void OnViewModelPropertyChanged(object sender, PropertyChangedEventArgs e)
         {
-            if (e.PropertyName == nameof(RDTSectorObjectsViewModel.Objects))
+            switch (e.PropertyName)
             {
-                BuildView();
+                case nameof(RDTSectorObjectsViewModel.Objects):
+                    BuildView();
+                    break;
+                // an object picked in the preview: in view once its group has opened
+                case nameof(RDTSectorObjectsViewModel.SelectedObject) when _viewModel?.SelectedObject is { } item:
+                    Dispatcher.BeginInvoke(new Action(() => ObjectsGrid.ScrollIntoView(item)), System.Windows.Threading.DispatcherPriority.Background);
+                    break;
+                default:
+                    break;
             }
         }
+
+        private void CopyXlRemoval_OnClick(object sender, RoutedEventArgs e) =>
+            _viewModel?.CopyXlRemoval(ObjectsGrid.SelectedItems.OfType<SectorObject>().ToList());
 
         private void BuildView()
         {

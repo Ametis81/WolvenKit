@@ -31,6 +31,39 @@ public class SectorObjectListTests
         Assert.Equal(expected, SectorObjectList.VariantOf([0, 2339, 2340, 2366, 2367, 2371, 2373, 2410, 2519, 2520, 2521], entry));
 
     [Fact]
+    public void BuildXlRemoval_IndexIsNodeData_TypeIsRealClass()
+    {
+        var poster = new SectorObject
+        {
+            NodeDataIndex = 2141, NodeIndex = 544, InnerIndex = 0, ClassName = "worldCookedStaticMeshNode",
+            Group = "Static mesh", Name = "poster_b.mesh", Variant = 0, VariantName = "Persistent",
+            X = -782.64f, Y = 987.7f, Z = 30.09f,
+        };
+        var hedge = new SectorObject
+        {
+            NodeDataIndex = 253, NodeIndex = 102, InnerIndex = 0, ClassName = "worldInstancedMeshNode",
+            Group = "Instanced mesh", Name = "hedge_low_3m.mesh", Detail = "2 instances", Variant = 7, VariantName = "Variant 7",
+            X = 1, Y = 2, Z = 3,
+        };
+
+        var xl = SectorObjectList.BuildXlRemoval("base/worlds/x/interior_-25_30_0_0.streamingsector", 3112, [poster, hedge]);
+
+        Assert.Equal(
+            "streaming:\n" +
+            "  sectors:\n" +
+            "    - path: base\\worlds\\x\\interior_-25_30_0_0.streamingsector\n" +
+            "      expectedNodes: 3112\n" +
+            "      nodeDeletions:\n" +
+            "        # hedge_low_3m.mesh, 2 instances (Variant 7) at 1, 2, 3\n" +
+            "        - index: 253\n" +
+            "          type: worldInstancedMeshNode\n" +
+            "        # poster_b.mesh (Persistent) at -782.64, 987.7, 30.09\n" +
+            "        - index: 2141\n" +
+            "          type: worldCookedStaticMeshNode\n",
+            xl.ReplaceLineEndings("\n"));
+    }
+
+    [Fact]
     public void Categories_OnlyTellingFlags_InOrder()
     {
         var flags = ENodeFlags.FLAG_IsInterior | ENodeFlags.FLAG_NoCollision | ENodeFlags.FLAG_Decoration |

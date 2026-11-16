@@ -32,6 +32,9 @@ public partial class RDTSectorObjectsViewModel : RedDocumentTabViewModel
     /// <summary>Asks the document to show this node in the data tab.</summary>
     public event EventHandler<int>? NodeOpenRequested;
 
+    /// <summary>Asks the document to show this object (node index, nodeData index) in the sector preview.</summary>
+    public event EventHandler<(int NodeIndex, int NodeDataIndex)>? PreviewOpenRequested;
+
     /// <summary>Raised when the rows to show change, so the view refreshes its filter.</summary>
     public event EventHandler? FilterChanged;
 
@@ -51,7 +54,17 @@ public partial class RDTSectorObjectsViewModel : RedDocumentTabViewModel
 
     public IReadOnlyList<string> Categories { get; }
 
-    partial void OnFilterTextChanged(string value) => FilterChanged?.Invoke(this, EventArgs.Empty);
+    /// <summary>While searching, the groups open by themselves.</summary>
+    public bool IsFiltering => FilterText.Trim().Length > 0;
+
+    // an object picked in the preview, selected the next time the list is built
+    private int? _pendingNodeDataIndex;
+
+    partial void OnFilterTextChanged(string value)
+    {
+        OnPropertyChanged(nameof(IsFiltering));
+        FilterChanged?.Invoke(this, EventArgs.Empty);
+    }
 
     partial void OnOnlyCookedChanged(bool value) => FilterChanged?.Invoke(this, EventArgs.Empty);
 
@@ -75,6 +88,17 @@ public partial class RDTSectorObjectsViewModel : RedDocumentTabViewModel
         var cooked = objects.Count(o => o.IsCooked);
         var variants = objects.Select(o => o.Variant).Distinct().Count();
         var hidden = objects.Count(o => o.IsHidden);
+        if (_pendingNodeDataIndex is { } pending)
+        {
+            _pendingNodeDataIndex = null;
+            if (objects.FirstOrDefault(o => o.NodeDataIndex == pending) is { } picked)
+            {
+                // shows the one row, its groups open
+                FilterText = $"#{picked.NodeDataIndex}";
+                SelectedObject = picked;
+            }
+        }
+
         Summary = string.Format(CultureInfo.CurrentCulture,
             "{0} nodes → {1} objects · {2} in cooked nodes · {3} node range(s){4}",
             _sector.Nodes.Count, objects.Count, cooked, variants, hidden > 0 ? $" · {hidden} hidden" : "");
@@ -105,9 +129,11 @@ public partial class RDTSectorObjectsViewModel : RedDocumentTabViewModel
             return true;
         }
 
-        // every word somewhere in the row: "hedge 1057", "decal variant 7"
+        // every word somewhere in the row: "hedge 1057", "decal variant 7"; "#157" is exactly nodeData entry 157
         return text.Split(' ', StringSplitOptions.RemoveEmptyEntries).All(word =>
-            Contains(item.Name, word) || Contains(item.Resource, word) || Contains(item.Appearance, word) ||
+            word.Length > 1 && word[0] == '#' && int.TryParse(word.AsSpan(1), NumberStyles.None, CultureInfo.InvariantCulture, out var entry)
+                ? item.NodeDataIndex == entry
+                : Contains(item.Name, word) || Contains(item.Resource, word) || Contains(item.Appearance, word) ||
             Contains(item.ClassName, word) || Contains(item.Group, word) || Contains(item.DebugName, word) ||
             Contains(item.VariantName, word) || Contains(item.Categories, word) || Contains(item.Where, word));
     }
@@ -123,6 +149,30 @@ public partial class RDTSectorObjectsViewModel : RedDocumentTabViewModel
         {
             NodeOpenRequested?.Invoke(this, target.NodeIndex);
         }
+    }
+
+    /// <summary>The object picked in the sector preview: selected when this tab is shown.</summary>
+    public void SelectWhenShown(int nodeDataIndex) => _pendingNodeDataIndex = nodeDataIndex;
+
+    /// <summary>Shows the object in the sector preview.</summary>
+    [RelayCommand]
+    private void ShowInPreview(SectorObject? item)
+    {
+        if ((item ?? SelectedObject) is { } target)
+        {
+            PreviewOpenRequested?.Invoke(this, (target.NodeIndex, target.NodeDataIndex));
+        }
+    }
+
+    /// <summary>An ArchiveXL removal of these objects (see <see cref="SectorObjectList.BuildXlRemoval"/>).</summary>
+    public void CopyXlRemoval(IReadOnlyCollection<SectorObject> items)
+    {
+        if (items.Count == 0)
+        {
+            return;
+        }
+
+        Clipboard.SetText(SectorObjectList.BuildXlRemoval(RelativeFilePath, Objects.Count, items));
     }
 
     /// <summary>Class, indices, resource and position: what an .xl removal or a bug report needs.</summary>

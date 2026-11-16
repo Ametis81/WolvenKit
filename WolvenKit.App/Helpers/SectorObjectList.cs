@@ -261,6 +261,30 @@ public static class SectorObjectList
         return ((float)(CFloat)position.X, (float)(CFloat)position.Y, (float)(CFloat)position.Z);
     }
 
+    /// <summary>
+    /// An ArchiveXL removal of these objects from the sector: <c>index</c> is the nodeData entry and <c>type</c> the
+    /// class of its node, as ArchiveXL checks them; <c>expectedNodes</c> counts the nodeData entries. A comment above
+    /// each entry names the object.
+    /// </summary>
+    public static string BuildXlRemoval(string sectorPath, int expectedNodes, IEnumerable<SectorObject> objects)
+    {
+        var text = new StringBuilder();
+        text.AppendLine("streaming:");
+        text.AppendLine("  sectors:");
+        text.AppendLine(CultureInfo.InvariantCulture, $"    - path: {sectorPath.Replace('/', '\\')}");
+        text.AppendLine(CultureInfo.InvariantCulture, $"      expectedNodes: {expectedNodes}");
+        text.AppendLine("      nodeDeletions:");
+        foreach (var o in objects.OrderBy(o => o.NodeDataIndex))
+        {
+            var detail = o.Detail is { Length: > 0 } d ? $", {d}" : "";
+            text.AppendLine(CultureInfo.InvariantCulture, $"        # {o.Name}{detail} ({o.VariantName}) at {o.Position}");
+            text.AppendLine(CultureInfo.InvariantCulture, $"        - index: {o.NodeDataIndex}");
+            text.AppendLine(CultureInfo.InvariantCulture, $"          type: {o.ClassName}");
+        }
+
+        return text.ToString();
+    }
+
     /// <summary>The node range an entry is in: the last range starting at or before it.</summary>
     internal static int VariantOf(IReadOnlyList<int> rangeStarts, int entryIndex)
     {
