@@ -71,17 +71,24 @@ public class MultilayerPaletteTests
     }
 
     [Fact]
-    public void SuggestColorName_StartsGroups_NumbersVariants()
+    public void SuggestColorName_GameFormat_NewGroupsAndVariants()
     {
-        var taken = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        Assert.Equal("custom_null", ChunkViewModel.SuggestColorName(null, taken));
+        var taken = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "a1b2c3_null", "a1b2c3_48e702" };
+        var random = new Random(81);
 
-        taken.Add("custom_null");
-        Assert.Equal("custom_01", ChunkViewModel.SuggestColorName(null, taken));
+        for (var i = 0; i < 50; i++)
+        {
+            var group = ChunkViewModel.SuggestColorName(null, taken, random);
+            Assert.Matches("^[0-9a-f]{6}_null$", group);
+            Assert.DoesNotContain(taken, name => name.StartsWith(group[..6] + "_", StringComparison.OrdinalIgnoreCase));
 
-        var basis = new Multilayer_LayerTemplateOverridesColor { N = "a1b2c3_null" };
-        taken.Add("a1b2c3_null");
-        taken.Add("a1b2c3_01");
-        Assert.Equal("a1b2c3_02", ChunkViewModel.SuggestColorName(basis, taken));
+            var basis = new Multilayer_LayerTemplateOverridesColor { N = "a1b2c3_null" };
+            var variant = ChunkViewModel.SuggestColorName(basis, taken, random);
+            Assert.Matches("^a1b2c3_[0-9a-f]{6}$", variant);
+            Assert.DoesNotContain(variant, taken);
+
+            taken.Add(group);
+            taken.Add(variant);
+        }
     }
 }

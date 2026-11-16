@@ -152,12 +152,24 @@ public partial class ChunkViewModel
         ResolvedData is Multilayer_LayerTemplateOverridesColor && Parent?.ResolvedData is CArray<Multilayer_LayerTemplateOverridesColor> ? Parent :
         null;
 
-    public bool CanAddMultilayerColor() => !IsReadOnly && OverrideColorsNode is not null;
+    /// <summary>Whether "Add colour" belongs in this node's context menu (it may still be disabled).</summary>
+    public bool IsMultilayerColorsNode => OverrideColorsNode is not null;
 
     /// <summary>
-    /// Adds a colour to the template's colorScale overrides. Run on an entry, the new colour starts as a variant of
-    /// it (same group, same values); the colour picker of its v sets the values. Asks before changing a template
-    /// that isn't the project's own, since that would change the game's template.
+    /// Only templates of the project under a path of their own get new colours: changing a template on a path the
+    /// game uses would change every material that uses it. Those have to be copied first.
+    /// </summary>
+    public bool CanAddMultilayerColor() =>
+        !IsReadOnly &&
+        OverrideColorsNode is not null &&
+        Tab?.Parent.RelativePath is { Length: > 0 } templatePath &&
+        Locator.Current.GetService<DocumentTools>() is { } tools &&
+        tools.IsCustomMultilayerTemplate(templatePath);
+
+    /// <summary>
+    /// Adds a colour to the template's colorScale overrides, named like the game's (group_variant, 6 hex digits
+    /// each). Run on an entry, the new colour starts as a variant of it (same group, same values); the colour picker
+    /// of its v sets the values.
     /// </summary>
     [RelayCommand(CanExecute = nameof(CanAddMultilayerColor))]
     private async Task AddMultilayerColor()
@@ -168,20 +180,9 @@ public partial class ChunkViewModel
             return;
         }
 
-        var templatePath = Tab?.Parent.RelativePath ?? "";
-        if (Locator.Current.GetService<DocumentTools>() is { } tools && !tools.IsCustomMultilayerTemplate(templatePath) &&
-            Interactions.ShowMessageBox(
-                $"{templatePath} is not a template of this project under a path of its own.\n\n" +
-                "Changing a template the game uses changes every material that uses it. Copy it to the project first " +
-                "(\"Copy template to project\" on a layer of a multilayer setup), then add colours to the copy.\n\nAdd the colour anyway?",
-                title, WMessageBoxButtons.YesNo, WMessageBoxImage.Warning) != WMessageBoxResult.Yes)
-        {
-            return;
-        }
-
         var basis = ResolvedData as Multilayer_LayerTemplateOverridesColor;
         var names = colors.Select(c => c.N.GetResolvedText() ?? "").ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var name = await Interactions.ShowInputBoxAsync($"{title}: name (group_variant)", SuggestColorName(basis, names));
+        var name = await Interactions.ShowInputBoxAsync($"{title}: name (group_variant)", SuggestColorName(basis, names, Random.Shared));
         name = name.Trim();
         if (name.Length == 0)
         {
@@ -213,18 +214,39 @@ public partial class ChunkViewModel
         }
     }
 
-    // group_null starts a group; variants of a group get the next free number
-    internal static string SuggestColorName(Multilayer_LayerTemplateOverridesColor? basis, ISet<string> taken)
+    /// <summary>
+    /// A free name in the game's format: a new group starts with its base colour, <c>xxxxxx_null</c>, a variant of an
+    /// entry is <c>group_xxxxxx</c>; xxxxxx are 6 random hex digits not used by the template yet.
+    /// </summary>
+    internal static string SuggestColorName(Multilayer_LayerTemplateOverridesColor? basis, ISet<string> taken, Random random)
     {
-        var group = basis?.N.GetResolvedText() is { Length: > 0 } basisName ? basisName.Split('_', 2)[0] : "custom";
-        var name = $"{group}_null";
-        for (var i = 1; taken.Contains(name); i++)
+        var groups = taken.Select(name => name.Split('_', 2)[0]).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        string name;
+        if (basis?.N.GetResolvedText() is { Length: > 0 } basisName)
         {
-            name = $"{group}_{i:00}";
+            var group = basisName.Split('_', 2)[0];
+            do
+            {
+                name = $"{group}_{RandomHex(random)}";
+            }
+            while (taken.Contains(name));
+        }
+        else
+        {
+            string group;
+            do
+            {
+                group = RandomHex(random);
+            }
+            while (groups.Contains(group));
+
+            name = $"{group}_null";
         }
 
         return name;
     }
+
+    private static string RandomHex(Random random) => random.Next(0x1000000).ToString("x6", System.Globalization.CultureInfo.InvariantCulture);
 
     #endregion
 }
