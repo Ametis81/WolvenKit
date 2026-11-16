@@ -72,9 +72,13 @@
             Foreground="{DynamicResource ContentForeground}"
             BorderThickness="0"
             EnableRowVirtualization="True"
+            ScrollViewer.CanContentScroll="True"
             VirtualizingPanel.IsVirtualizing="True"
             VirtualizingPanel.IsVirtualizingWhenGrouping="True"
             VirtualizingPanel.VirtualizationMode="Recycling"
+            VirtualizingPanel.ScrollUnit="Pixel"
+            VirtualizingPanel.CacheLength="1,1"
+            VirtualizingPanel.CacheLengthUnit="Page"
             SelectedItem="{Binding SelectedObject}"
             MouseDoubleClick="ObjectsGrid_OnMouseDoubleClick">
             <DataGrid.ContextMenu>

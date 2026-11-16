@@ -195,6 +195,13 @@ public static class SectorObjectList
                 debugName = null;
             }
 
+            // instanced meshes keep their transforms in world space in the node; the entry's own is the origin
+            var (x, y, z) = ((float)entry.Transform.Position.X, (float)entry.Transform.Position.Y, (float)entry.Transform.Position.Z);
+            if (FirstInstancePosition(node, inner) is { } first)
+            {
+                (x, y, z) = first;
+            }
+
             var group = GroupName(className);
             result.Add(new SectorObject
             {
@@ -214,9 +221,9 @@ public static class SectorObjectList
                 Flags = flags,
                 Categories = Categories(flags),
                 DebugName = debugName,
-                X = entry.Transform.Position.X,
-                Y = entry.Transform.Position.Y,
-                Z = entry.Transform.Position.Z,
+                X = x,
+                Y = y,
+                Z = z,
             });
         }
 
@@ -231,6 +238,27 @@ public static class SectorObjectList
         }
 
         return result;
+    }
+
+    /// <summary>World position of the first transform of an instanced mesh's range, if the node is one.</summary>
+    private static (float X, float Y, float Z)? FirstInstancePosition(RedBaseClass? node, int inner)
+    {
+        if (node is not worldInstancedMeshNode
+            {
+                Buffer.Data: worldInstancedMeshNodeBuffer buffer,
+                CookedWorldTransformsBuffer.Data: WorldTransformsBuffer world,
+            } || inner < 0 || inner >= buffer.TransformRanges.Count)
+        {
+            return null;
+        }
+
+        var index = (int)(ushort)buffer.TransformRanges[inner].TransformIndex;
+        if (index >= world.Transforms.Count || world.Transforms[index]?.Transform.Position is not { } position)
+        {
+            return null;
+        }
+
+        return ((float)(CFloat)position.X, (float)(CFloat)position.Y, (float)(CFloat)position.Z);
     }
 
     /// <summary>The node range an entry is in: the last range starting at or before it.</summary>
