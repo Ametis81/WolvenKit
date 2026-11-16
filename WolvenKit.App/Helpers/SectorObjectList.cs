@@ -82,19 +82,23 @@ public sealed class SectorObject
 
     public string HiddenText => IsHidden ? "hidden" : "";
 
-    /// <summary>What a removal in an .xl file needs: the class, the indices and where the object is.</summary>
+    /// <summary>
+    /// What a removal in an .xl file needs: the class, the indices and where the object is. The indices are named as
+    /// RedHotTools' world inspector names them: Node Instance (nodeData entry, the index of an .xl removal), Node
+    /// Definition (nodes) and Cooked Instance (the inner node of a cooked node).
+    /// </summary>
     public string Summary
     {
         get
         {
             var text = new StringBuilder();
-            text.Append(CultureInfo.InvariantCulture, $"{ClassName} node {NodeIndex}");
+            text.Append(CultureInfo.InvariantCulture, $"{ClassName} · Node Instance {NodeDataIndex} · Node Definition {NodeIndex}");
             if (InnerIndex >= 0)
             {
-                text.Append(CultureInfo.InvariantCulture, $" instanceIndex {InnerIndex}");
+                text.Append(CultureInfo.InvariantCulture, $" · Cooked Instance {InnerIndex}");
             }
 
-            text.Append(CultureInfo.InvariantCulture, $" nodeData {NodeDataIndex} ({VariantName})");
+            text.Append(CultureInfo.InvariantCulture, $" · {VariantName} ·");
             if (Resource is { Length: > 0 })
             {
                 text.Append(CultureInfo.InvariantCulture, $" {Resource}");
@@ -426,7 +430,12 @@ public static class SectorObjectList
             ? AppearanceText(appearanceName)
             : null;
 
-        return (resource, appearance, null);
+        // what an .xl removal of single instances counts (expectedInstances)
+        var detail = node is worldInstancedDestructibleMeshNode destructible
+            ? $"{destructible.InstanceTransforms.Count} instances"
+            : null;
+
+        return (resource, appearance, detail);
     }
 
     private static IRedType? TryGetProperty(RedBaseClass node, string name)

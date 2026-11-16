@@ -218,8 +218,13 @@
                     Binding="{Binding Detail}" />
                 <DataGridTextColumn
                     Width="160"
-                    Header="Where"
-                    Binding="{Binding Where}" />
+                    Binding="{Binding Where}">
+                    <DataGridTextColumn.Header>
+                        <TextBlock
+                            Text="Where"
+                            ToolTip="#Node Instance (nodeData entry, the index of an .xl removal) · node Node Definition (nodes) [Cooked Instance], as RedHotTools names them" />
+                    </DataGridTextColumn.Header>
+                </DataGridTextColumn>
                 <DataGridTextColumn
                     Width="230"
                     Header="Class"
