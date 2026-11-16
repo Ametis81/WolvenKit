@@ -426,6 +426,23 @@
                     </DataTemplate>
                 </converters:RedEditorTemplateSelector.FilterableDropdownCNameEditor>
 
+                <!-- v of a colorScale override (mltemplate): colour palette for the three channels -->
+                <converters:RedEditorTemplateSelector.RedOverrideColorEditor>
+                    <DataTemplate>
+                        <editors:RedOverrideColorEditor DataContext="{Binding}" />
+                    </DataTemplate>
+                </converters:RedEditorTemplateSelector.RedOverrideColorEditor>
+
+                <!-- colorScale of a layer (mlsetup): the dropdown, then the template's colours -->
+                <converters:RedEditorTemplateSelector.MultilayerColorScaleEditor>
+                    <DataTemplate>
+                        <StackPanel>
+                            <editors:FilterableDropdownCNameMenu DataContext="{Binding}" />
+                            <editors:MultilayerPaletteView DataContext="{Binding}" />
+                        </StackPanel>
+                    </DataTemplate>
+                </converters:RedEditorTemplateSelector.MultilayerColorScaleEditor>
+
                 <converters:RedEditorTemplateSelector.FilterableDropdownRedstringEditor>
                     <DataTemplate>
                         <editors:FilterableDropdownRedstringMenu DataContext="{Binding}" />

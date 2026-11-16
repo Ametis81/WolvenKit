@@ -1,4 +1,3 @@
-using System;
 using System.Linq;
 using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -53,14 +52,9 @@ public partial class ChunkViewModel
             return null;
         }
 
-        return FromChannels(color.R, color.G, color.B);
+        return MultilayerPalette.ToColor(color.R, color.G, color.B);
     }
 
     private static Color? FromChannels(CArrayFixedSize<CFloat> v) =>
-        v.Count >= 3 ? FromChannels(v[0], v[1], v[2]) : null;
-
-    private static Color FromChannels(float r, float g, float b) => Color.FromRgb(ToByte(r), ToByte(g), ToByte(b));
-
-    private static byte ToByte(float value) =>
-        float.IsFinite(value) ? (byte)Math.Clamp(Math.Round(value * 255.0), 0, 255) : (byte)0;
+        v.Count >= 3 ? MultilayerPalette.ToColor(v[0], v[1], v[2]) : null;
 }

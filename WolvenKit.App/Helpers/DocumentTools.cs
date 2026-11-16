@@ -1612,59 +1612,87 @@ public class DocumentTools
         return ret.Where(s => !string.IsNullOrEmpty(s)).Select(s => s!).ToArray();
     }
 
+    /// <summary>colorScale overrides of a multilayer template, in file order and by name.</summary>
+    private sealed record MultilayerTemplateColors(
+        DateTime? Stamp,
+        IReadOnlyList<MultilayerPaletteColor> Colors,
+        Dictionary<string, MultilayerPaletteColor> ByName);
+
     /// <summary>
-    /// colorScale overrides of each multilayer template read so far (name → r, g, b), with the write time of the
-    /// template's project file when it was read (null for a template from the game archives).
+    /// colorScale overrides of each multilayer template read so far, with the write time of the template's project
+    /// file when it was read (null for a template from the game archives).
     /// </summary>
-    private static readonly Dictionary<string, (DateTime? Stamp, Dictionary<string, (float R, float G, float B)> Colors)> s_multilayerColorCache =
-        new(StringComparer.OrdinalIgnoreCase);
+    private static readonly Dictionary<string, MultilayerTemplateColors> s_multilayerColorCache = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
     /// The colour of a colorScale override of a multilayer template ("00cf56_69039f" → its v), for the swatches
-    /// of the file editor. A template is read once (project file first, then the game archives), and again when
-    /// its file in the project changed; a template that can't be read is not remembered, so it is tried again.
+    /// of the file editor.
     /// </summary>
     public bool TryGetMultilayerColor(string materialPath, string colorName, out (float R, float G, float B) color)
     {
         color = default;
-        if (string.IsNullOrEmpty(materialPath) || string.IsNullOrEmpty(colorName))
+        if (string.IsNullOrEmpty(colorName) || GetMultilayerTemplateColors(materialPath) is not { } colors ||
+            !colors.ByName.TryGetValue(colorName, out var found))
         {
             return false;
         }
 
+        color = (found.R, found.G, found.B);
+        return true;
+    }
+
+    /// <summary>All colorScale overrides of a multilayer template in file order (empty if it can't be read).</summary>
+    public IReadOnlyList<MultilayerPaletteColor> GetMultilayerPalette(string materialPath) =>
+        GetMultilayerTemplateColors(materialPath)?.Colors ?? [];
+
+    /// <summary>
+    /// A template's overrides, read once (project file first, then the game archives) and again when its file in
+    /// the project changed. A template that can't be read is not remembered, so it is tried again.
+    /// </summary>
+    private MultilayerTemplateColors? GetMultilayerTemplateColors(string materialPath)
+    {
+        if (string.IsNullOrEmpty(materialPath))
+        {
+            return null;
+        }
+
         var stamp = GetProjectFileStamp(materialPath);
-        (DateTime? Stamp, Dictionary<string, (float R, float G, float B)> Colors) cached;
-        bool known;
+        MultilayerTemplateColors? cached;
         lock (s_multilayerColorCache)
         {
             // trees of documents being opened can be built on other threads
-            known = s_multilayerColorCache.TryGetValue(materialPath, out cached);
+            s_multilayerColorCache.TryGetValue(materialPath, out cached);
         }
 
-        if (!known || cached.Stamp != stamp)
+        if (cached is not null && cached.Stamp == stamp)
         {
-            if (ReadCr2WFromRelativePath(materialPath) is not { RootChunk: Multilayer_LayerTemplate template })
-            {
-                return false;
-            }
+            return cached;
+        }
 
-            var colors = new Dictionary<string, (float R, float G, float B)>(StringComparer.Ordinal);
-            foreach (var entry in template.Overrides.ColorScale)
-            {
-                if (entry?.N.GetResolvedText() is { Length: > 0 } name && entry.V.Count >= 3)
-                {
-                    colors[name] = ((float)entry.V[0], (float)entry.V[1], (float)entry.V[2]);
-                }
-            }
+        if (ReadCr2WFromRelativePath(materialPath) is not { RootChunk: Multilayer_LayerTemplate template })
+        {
+            return null;
+        }
 
-            cached = (stamp, colors);
-            lock (s_multilayerColorCache)
+        var colors = new List<MultilayerPaletteColor>();
+        var byName = new Dictionary<string, MultilayerPaletteColor>(StringComparer.Ordinal);
+        foreach (var entry in template.Overrides.ColorScale)
+        {
+            if (entry?.N.GetResolvedText() is { Length: > 0 } name && entry.V.Count >= 3 && !byName.ContainsKey(name))
             {
-                s_multilayerColorCache[materialPath] = cached;
+                var color = new MultilayerPaletteColor(name, entry.V[0], entry.V[1], entry.V[2]);
+                colors.Add(color);
+                byName[name] = color;
             }
         }
 
-        return cached.Colors.TryGetValue(colorName, out color);
+        cached = new MultilayerTemplateColors(stamp, colors, byName);
+        lock (s_multilayerColorCache)
+        {
+            s_multilayerColorCache[materialPath] = cached;
+        }
+
+        return cached;
     }
 
     /// <summary>Last write time of a file in the active project, or null if the project has no such file.</summary>
