@@ -19,12 +19,15 @@ public partial class RDTSectorObjectsViewModel : RedDocumentTabViewModel
 {
     public const string AllCategories = "All categories";
 
+    public const string AllTargetGroups = "All groups";
+
     private readonly worldStreamingSector _sector;
 
     public RDTSectorObjectsViewModel(worldStreamingSector sector, RedDocumentViewModel file) : base(file, "Objects")
     {
         _sector = sector;
         Categories = [AllCategories, .. SectorObjectList.CategoryNames];
+        TargetGroups = [AllTargetGroups, .. SectorTargetGroups.Names];
     }
 
     public override ERedDocumentItemType DocumentItemType => ERedDocumentItemType.W2rcBuffer;
@@ -50,9 +53,14 @@ public partial class RDTSectorObjectsViewModel : RedDocumentTabViewModel
 
     [ObservableProperty] private string _selectedCategory = AllCategories;
 
+    /// <summary>RedHotTools' target group (Mesh, Collision, Area...).</summary>
+    [ObservableProperty] private string _selectedTargetGroup = AllTargetGroups;
+
     [ObservableProperty] private SectorObject? _selectedObject;
 
     public IReadOnlyList<string> Categories { get; }
+
+    public IReadOnlyList<string> TargetGroups { get; }
 
     /// <summary>While searching, the groups open by themselves.</summary>
     public bool IsFiltering => FilterText.Trim().Length > 0;
@@ -72,6 +80,8 @@ public partial class RDTSectorObjectsViewModel : RedDocumentTabViewModel
 
     partial void OnSelectedCategoryChanged(string value) => FilterChanged?.Invoke(this, EventArgs.Empty);
 
+    partial void OnSelectedTargetGroupChanged(string value) => FilterChanged?.Invoke(this, EventArgs.Empty);
+
     /// <summary>Reads the sector again each time the tab is shown: edits made in the data tab show up.</summary>
     public override void OnSelected()
     {
@@ -82,7 +92,23 @@ public partial class RDTSectorObjectsViewModel : RedDocumentTabViewModel
     [RelayCommand]
     private void Refresh()
     {
+        // ticked instances / actors survive a refresh (the list is read again each time the tab is shown)
+        var ticked = Objects
+            .SelectMany(o => o.Elements.Where(e => e.IsChecked).Select(e => (o.NodeDataIndex, e.Index)))
+            .ToHashSet();
+
         var objects = SectorObjectList.Build(_sector);
+        if (ticked.Count > 0)
+        {
+            foreach (var o in objects)
+            {
+                foreach (var e in o.Elements)
+                {
+                    e.IsChecked = ticked.Contains((o.NodeDataIndex, e.Index));
+                }
+            }
+        }
+
         Objects = objects;
 
         var cooked = objects.Count(o => o.IsCooked);
@@ -119,6 +145,11 @@ public partial class RDTSectorObjectsViewModel : RedDocumentTabViewModel
         }
 
         if (SelectedCategory != AllCategories && !item.Categories.Contains(SelectedCategory, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        if (SelectedTargetGroup != AllTargetGroups && item.TargetGroup != SelectedTargetGroup)
         {
             return false;
         }
@@ -164,9 +195,13 @@ public partial class RDTSectorObjectsViewModel : RedDocumentTabViewModel
         }
     }
 
-    /// <summary>An ArchiveXL removal of these objects (see <see cref="SectorObjectList.BuildXlRemoval"/>).</summary>
-    public void CopyXlRemoval(IReadOnlyCollection<SectorObject> items)
+    /// <summary>
+    /// An ArchiveXL removal (see <see cref="SectorObjectList.BuildXlRemoval"/>) of the selected rows and of every row
+    /// with instances or actors ticked.
+    /// </summary>
+    public void CopyXlRemoval(IEnumerable<SectorObject> selected)
     {
+        var items = selected.Union(Objects.Where(o => o.Elements.Any(e => e.IsChecked))).ToList();
         if (items.Count == 0)
         {
             return;

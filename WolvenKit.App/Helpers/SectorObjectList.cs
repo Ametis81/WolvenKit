@@ -6,11 +6,35 @@ using System.Globalization;
 using System.Linq;
 using System.Reflection;
 using System.Text;
+using CommunityToolkit.Mvvm.ComponentModel;
 using WolvenKit.RED4.Archive.Buffer;
 using WolvenKit.RED4.Types;
 using static WolvenKit.RED4.Types.Enums;
 
 namespace WolvenKit.App.Helpers;
+
+/// <summary>What the elements of an object are, for an .xl removal of single ones.</summary>
+public enum SectorElementKind
+{
+    None,
+
+    /// <summary>Copies of an instanced mesh (instanceDeletions / expectedInstances).</summary>
+    Instance,
+
+    /// <summary>Collision actors (actorDeletions / expectedActors).</summary>
+    Actor,
+}
+
+/// <summary>One instance or collision actor of an object, ticked to be removed on its own.</summary>
+public sealed partial class SectorObjectElement : ObservableObject
+{
+    public required int Index { get; init; }
+
+    /// <summary>"instance 2 at -780.1, 985.6, 12.2", "actor 3".</summary>
+    public required string Text { get; init; }
+
+    [ObservableProperty] private bool _isChecked;
+}
 
 /// <summary>
 /// One object of a sector: one nodeData entry, with the node (and, for cooked nodes, the inner node) it places.
@@ -31,6 +55,16 @@ public sealed class SectorObject
 
     /// <summary>The kind of object, the same for a cooked class and the class it replaces ("Static mesh").</summary>
     public required string Group { get; init; }
+
+    /// <summary>RedHotTools' target group of the class (Mesh, Collision, Area...).</summary>
+    public string TargetGroup { get; init; } = SectorTargetGroups.Other;
+
+    /// <summary>Instances or actors that an .xl removal can remove one by one; none for other objects.</summary>
+    public SectorElementKind ElementKind { get; init; }
+
+    public IReadOnlyList<SectorObjectElement> Elements { get; init; } = [];
+
+    public bool HasElements => Elements.Count > 0;
 
     /// <summary>File name of the object's resource, else its debug name, else its kind.</summary>
     public required string Name { get; init; }
@@ -207,8 +241,12 @@ public static class SectorObjectList
             }
 
             var group = GroupName(className);
+            var (elementKind, elements) = Elements(node, inner, entry);
             result.Add(new SectorObject
             {
+                TargetGroup = SectorTargetGroups.Of(className),
+                ElementKind = elementKind,
+                Elements = elements,
                 NodeDataIndex = i,
                 NodeIndex = nodeIndex,
                 InnerIndex = inner,
@@ -244,6 +282,77 @@ public static class SectorObjectList
         return result;
     }
 
+    /// <summary>
+    /// The instances or collision actors of an object that ArchiveXL can remove one by one, counted as it counts them
+    /// (expectedInstances / expectedActors): the transform range of an instanced mesh, the instance transforms of a
+    /// destructible instanced mesh, the actors of a collision node or of the inner node of a cooked one.
+    /// </summary>
+    private static (SectorElementKind Kind, IReadOnlyList<SectorObjectElement> Elements) Elements(
+        RedBaseClass? node, int inner, worldCompiledNodeInstanceSetupInfo entry)
+    {
+        switch (node)
+        {
+            case worldInstancedMeshNode
+            {
+                Buffer.Data: worldInstancedMeshNodeBuffer buffer,
+                CookedWorldTransformsBuffer.Data: WorldTransformsBuffer world,
+            } when inner >= 0 && inner < buffer.TransformRanges.Count:
+            {
+                var start = (int)(ushort)buffer.TransformRanges[inner].TransformIndex;
+                var count = (int)(ushort)buffer.TransformRanges[inner].TransformCount;
+                var list = new List<SectorObjectElement>(count);
+                for (var i = 0; i < count; i++)
+                {
+                    var text = $"instance {i}";
+                    if (start + i < world.Transforms.Count && world.Transforms[start + i]?.Transform.Position is { } p)
+                    {
+                        text += " at " + FormatPosition((float)(CFloat)p.X, (float)(CFloat)p.Y, (float)(CFloat)p.Z);
+                    }
+
+                    list.Add(new SectorObjectElement { Index = i, Text = text });
+                }
+
+                return (SectorElementKind.Instance, list);
+            }
+            case worldInstancedDestructibleMeshNode destructible:
+            {
+                // instance transforms are relative to the entry
+                var origin = new System.Numerics.Vector3(entry.Transform.Position.X, entry.Transform.Position.Y, entry.Transform.Position.Z);
+                var rotation = new System.Numerics.Quaternion(entry.Transform.Orientation.I, entry.Transform.Orientation.J,
+                    entry.Transform.Orientation.K, entry.Transform.Orientation.R);
+                var scale = new System.Numerics.Vector3(entry.Scale.X, entry.Scale.Y, entry.Scale.Z);
+                var list = new List<SectorObjectElement>(destructible.InstanceTransforms.Count);
+                for (var i = 0; i < destructible.InstanceTransforms.Count; i++)
+                {
+                    var text = $"instance {i}";
+                    if (destructible.InstanceTransforms[i] is { } t)
+                    {
+                        var local = new System.Numerics.Vector3(t.Position.X, t.Position.Y, t.Position.Z) * scale;
+                        var p = origin + System.Numerics.Vector3.Transform(local, rotation);
+                        text += " at " + FormatPosition(p.X, p.Y, p.Z);
+                    }
+
+                    list.Add(new SectorObjectElement { Index = i, Text = text });
+                }
+
+                return (SectorElementKind.Instance, list);
+            }
+            case worldCookedCollisionNode { Buffer.Data: worldCookedCollisionInfoBuffer infos }
+                when inner >= 0 && inner < infos.CollisionNodeInfos.Count:
+                return (SectorElementKind.Actor, Actors(infos.CollisionNodeInfos[inner].NumActors));
+            case worldCollisionNode collision:
+                return (SectorElementKind.Actor, Actors(collision.NumActors));
+            default:
+                return (SectorElementKind.None, []);
+        }
+    }
+
+    private static List<SectorObjectElement> Actors(ushort count) =>
+        Enumerable.Range(0, count).Select(i => new SectorObjectElement { Index = i, Text = $"actor {i}" }).ToList();
+
+    internal static string FormatPosition(float x, float y, float z) =>
+        string.Format(CultureInfo.InvariantCulture, "{0:0.##}, {1:0.##}, {2:0.##}", x, y, z);
+
     /// <summary>World position of the first transform of an instanced mesh's range, if the node is one.</summary>
     private static (float X, float Y, float Z)? FirstInstancePosition(RedBaseClass? node, int inner)
     {
@@ -267,8 +376,9 @@ public static class SectorObjectList
 
     /// <summary>
     /// An ArchiveXL removal of these objects from the sector: <c>index</c> is the nodeData entry and <c>type</c> the
-    /// class of its node, as ArchiveXL checks them; <c>expectedNodes</c> counts the nodeData entries. A comment above
-    /// each entry names the object.
+    /// class of its node, as ArchiveXL checks them; <c>expectedNodes</c> counts the nodeData entries. An object with
+    /// some (not all) of its instances or actors ticked keeps the others: only those are removed
+    /// (instanceDeletions / actorDeletions, with the count ArchiveXL expects). A comment above each entry names it.
     /// </summary>
     public static string BuildXlRemoval(string sectorPath, int expectedNodes, IEnumerable<SectorObject> objects)
     {
@@ -284,6 +394,16 @@ public static class SectorObjectList
             text.AppendLine(CultureInfo.InvariantCulture, $"        # {o.Name}{detail} ({o.VariantName}) at {o.Position}");
             text.AppendLine(CultureInfo.InvariantCulture, $"        - index: {o.NodeDataIndex}");
             text.AppendLine(CultureInfo.InvariantCulture, $"          type: {o.ClassName}");
+
+            var ticked = o.Elements.Where(e => e.IsChecked).Select(e => e.Index).ToList();
+            if (ticked.Count > 0 && ticked.Count < o.Elements.Count && o.ElementKind != SectorElementKind.None)
+            {
+                var (expected, deletions) = o.ElementKind == SectorElementKind.Actor
+                    ? ("expectedActors", "actorDeletions")
+                    : ("expectedInstances", "instanceDeletions");
+                text.AppendLine(CultureInfo.InvariantCulture, $"          {expected}: {o.Elements.Count}");
+                text.AppendLine(CultureInfo.InvariantCulture, $"          {deletions}: [{string.Join(", ", ticked)}]");
+            }
         }
 
         return text.ToString();

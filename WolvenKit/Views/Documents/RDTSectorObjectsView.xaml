@@ -43,6 +43,13 @@
                     ToolTip="Objects with this node flag"
                     ItemsSource="{Binding Categories}"
                     SelectedItem="{Binding SelectedCategory}" />
+                <ComboBox
+                    DockPanel.Dock="Right"
+                    MinWidth="110"
+                    Margin="{DynamicResource WolvenKitMarginTinyLeft}"
+                    ToolTip="Objects of this target group, as RedHotTools' world inspector groups them"
+                    ItemsSource="{Binding TargetGroups}"
+                    SelectedItem="{Binding SelectedTargetGroup}" />
                 <TextBox
                     x:Name="SearchBox"
                     VerticalContentAlignment="Center"
@@ -80,6 +87,7 @@
             VirtualizingPanel.CacheLength="1,1"
             VirtualizingPanel.CacheLengthUnit="Page"
             SelectedItem="{Binding SelectedObject}"
+            RowDetailsVisibilityMode="VisibleWhenSelected"
             MouseDoubleClick="ObjectsGrid_OnMouseDoubleClick">
             <DataGrid.ContextMenu>
                 <ContextMenu>
@@ -198,6 +206,34 @@
                     </Style.Triggers>
                 </Style>
             </DataGrid.RowStyle>
+
+            <!-- instances / collision actors of the selected row: ticked ones are removed on their own by Copy ArchiveXL removal -->
+            <DataGrid.RowDetailsTemplate>
+                <DataTemplate>
+                    <StackPanel
+                        Margin="24,2,4,6"
+                        Visibility="{Binding HasElements, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <TextBlock
+                            Foreground="{DynamicResource ContentForegroundAlt}"
+                            Text="Tick the ones to remove on their own with Copy ArchiveXL removal (all or none: the whole object)" />
+                        <ItemsControl ItemsSource="{Binding Elements}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <CheckBox
+                                        Margin="0,2,16,2"
+                                        Content="{Binding Text}"
+                                        IsChecked="{Binding IsChecked}" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </DataTemplate>
+            </DataGrid.RowDetailsTemplate>
 
             <DataGrid.Columns>
                 <DataGridTextColumn

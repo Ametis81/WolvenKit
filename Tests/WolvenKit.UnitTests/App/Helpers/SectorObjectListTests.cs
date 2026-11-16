@@ -64,6 +64,31 @@ public class SectorObjectListTests
     }
 
     [Fact]
+    public void BuildXlRemoval_TickedInstances_OnlyThose()
+    {
+        var hedge = new SectorObject
+        {
+            NodeDataIndex = 253, NodeIndex = 102, InnerIndex = 4, ClassName = "worldInstancedMeshNode",
+            Group = "Instanced mesh", Name = "hedge_low_3m.mesh", Variant = 0, VariantName = "Persistent",
+            ElementKind = SectorElementKind.Instance,
+            Elements =
+            [
+                new SectorObjectElement { Index = 0, Text = "instance 0", IsChecked = true },
+                new SectorObjectElement { Index = 1, Text = "instance 1" },
+                new SectorObjectElement { Index = 2, Text = "instance 2", IsChecked = true },
+            ],
+        };
+
+        var xl = SectorObjectList.BuildXlRemoval("x.streamingsector", 10, [hedge]).ReplaceLineEndings("\n");
+
+        Assert.Contains("        - index: 253\n          type: worldInstancedMeshNode\n          expectedInstances: 3\n          instanceDeletions: [0, 2]\n", xl);
+
+        // all ticked: the whole entry
+        hedge.Elements[1].IsChecked = true;
+        Assert.DoesNotContain("instanceDeletions", SectorObjectList.BuildXlRemoval("x.streamingsector", 10, [hedge]));
+    }
+
+    [Fact]
     public void Categories_OnlyTellingFlags_InOrder()
     {
         var flags = ENodeFlags.FLAG_IsInterior | ENodeFlags.FLAG_NoCollision | ENodeFlags.FLAG_Decoration |
