@@ -1,6 +1,10 @@
+using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Windows.Media;
 using WolvenKit.App.Helpers;
+using WolvenKit.App.ViewModels.Shell;
+using WolvenKit.RED4.Types;
 using Xunit;
 
 namespace Wolvenkit.Test.App.Helpers;
@@ -64,5 +68,20 @@ public class MultilayerPaletteTests
     {
         Assert.Equal(Color.FromRgb(177, 99, 70), MultilayerPalette.ToColor(0.695f, 0.389f, 0.273f));
         Assert.Equal(Color.FromRgb(255, 0, 0), MultilayerPalette.ToColor(1.5f, -0.2f, float.NaN));
+    }
+
+    [Fact]
+    public void SuggestColorName_StartsGroups_NumbersVariants()
+    {
+        var taken = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        Assert.Equal("custom_null", ChunkViewModel.SuggestColorName(null, taken));
+
+        taken.Add("custom_null");
+        Assert.Equal("custom_01", ChunkViewModel.SuggestColorName(null, taken));
+
+        var basis = new Multilayer_LayerTemplateOverridesColor { N = "a1b2c3_null" };
+        taken.Add("a1b2c3_null");
+        taken.Add("a1b2c3_01");
+        Assert.Equal("a1b2c3_02", ChunkViewModel.SuggestColorName(basis, taken));
     }
 }

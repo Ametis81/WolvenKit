@@ -838,6 +838,42 @@
                     </MenuItem.Icon>
                 </MenuItem>
 
+                <!-- Multilayer setup: copy a layer's template into the project under a path of its own -->
+                <MenuItem
+                    Visibility="{Binding Path=IsEnabled,
+                                         RelativeSource={RelativeSource Self},
+                                         Mode=OneWay,
+                                         Converter={StaticResource BooleanToVisibilityConverter}}"
+                    Header="Copy template to project..."
+                    Command="{Binding Path=PlacementTarget.Tag.CopyMultilayerTemplateToProjectCommand,
+                                      RelativeSource={RelativeSource AncestorType=ContextMenu}}">
+                    <MenuItem.Icon>
+                        <templates:IconBox
+                            IconPack="Material"
+                            Kind="ContentCopy"
+                            Margin="{DynamicResource WolvenKitMarginTiny}"
+                            Size="{DynamicResource WolvenKitIconMilli}" />
+                    </MenuItem.Icon>
+                </MenuItem>
+
+                <!-- Multilayer template: add a colorScale override -->
+                <MenuItem
+                    Visibility="{Binding Path=IsEnabled,
+                                         RelativeSource={RelativeSource Self},
+                                         Mode=OneWay,
+                                         Converter={StaticResource BooleanToVisibilityConverter}}"
+                    Header="Add colour..."
+                    Command="{Binding Path=PlacementTarget.Tag.AddMultilayerColorCommand,
+                                      RelativeSource={RelativeSource AncestorType=ContextMenu}}">
+                    <MenuItem.Icon>
+                        <templates:IconBox
+                            IconPack="Material"
+                            Kind="Palette"
+                            Margin="{DynamicResource WolvenKitMarginTiny}"
+                            Size="{DynamicResource WolvenKitIconMilli}" />
+                    </MenuItem.Icon>
+                </MenuItem>
+
                 <!-- Toggle IsMasked -->
                 <MenuItem
                     Visibility="{Binding Path=IsEnabled,

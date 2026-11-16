@@ -8,17 +8,28 @@
     d:DesignWidth="320"
     d:DesignHeight="160">
     <!-- DataContext: the ChunkViewModel of a layer's colorScale in a multilayer setup -->
-    <Expander
-        x:Name="PaletteExpander"
-        Margin="{DynamicResource WolvenKitMarginTiny}"
-        Header="Palette"
-        IsExpanded="True">
-        <ScrollViewer
-            MaxHeight="240"
-            HorizontalScrollBarVisibility="Auto"
-            VerticalScrollBarVisibility="Auto">
-            <!-- one row per group of the template's colours, the group's base colour first -->
-            <StackPanel x:Name="RowsPanel" />
-        </ScrollViewer>
-    </Expander>
+    <StackPanel>
+        <Expander
+            x:Name="PaletteExpander"
+            Margin="{DynamicResource WolvenKitMarginTiny}"
+            Header="Palette"
+            IsExpanded="True">
+            <ScrollViewer
+                MaxHeight="240"
+                HorizontalScrollBarVisibility="Auto"
+                VerticalScrollBarVisibility="Auto">
+                <!-- one row per group of the template's colours, the group's base colour first -->
+                <StackPanel x:Name="RowsPanel" />
+            </ScrollViewer>
+        </Expander>
+
+        <!-- only for templates that aren't the project's own yet -->
+        <Button
+            x:Name="CopyTemplateButton"
+            Margin="{DynamicResource WolvenKitMarginTiny}"
+            HorizontalAlignment="Left"
+            Content="Copy template to project..."
+            ToolTip="Copy the layer's template into the project under a path of its own and point the layer to the copy, to add or change colours without changing the game's template"
+            Click="CopyTemplateButton_OnClick" />
+    </StackPanel>
 </UserControl>

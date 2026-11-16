@@ -76,14 +76,23 @@ namespace WolvenKit.Views.Editors
 
             if (Cvm is not { ParentData: Multilayer_Layer layer } cvm ||
                 layer.Material.DepotPath.GetResolvedText() is not { Length: > 0 } template ||
-                Locator.Current.GetService<DocumentTools>() is not { } documentTools ||
-                documentTools.GetMultilayerPalette(template) is not { Count: > 0 } colors)
+                Locator.Current.GetService<DocumentTools>() is not { } documentTools)
             {
                 SetCurrentValue(VisibilityProperty, Visibility.Collapsed);
                 return;
             }
 
             SetCurrentValue(VisibilityProperty, Visibility.Visible);
+            CopyTemplateButton.SetCurrentValue(VisibilityProperty,
+                cvm.CanCopyMultilayerTemplate() ? Visibility.Visible : Visibility.Collapsed);
+
+            if (documentTools.GetMultilayerPalette(template) is not { Count: > 0 } colors)
+            {
+                PaletteExpander.SetCurrentValue(VisibilityProperty, Visibility.Collapsed);
+                return;
+            }
+
+            PaletteExpander.SetCurrentValue(VisibilityProperty, Visibility.Visible);
             var current = cvm.ResolvedData is CName name ? name.GetResolvedText() : null;
             var rows = MultilayerPalette.GroupIntoRows(colors);
             PaletteExpander.SetCurrentValue(HeaderedContentControl.HeaderProperty,
@@ -121,6 +130,15 @@ namespace WolvenKit.Views.Editors
             swatch.SetResourceReference(Border.BorderBrushProperty, isCurrent ? "ContentForeground" : "BorderAlt");
             swatch.MouseLeftButtonUp += Swatch_OnMouseLeftButtonUp;
             return swatch;
+        }
+
+        private async void CopyTemplateButton_OnClick(object sender, RoutedEventArgs e)
+        {
+            if (Cvm is { } cvm)
+            {
+                await cvm.CopyMultilayerTemplateToProjectCommand.ExecuteAsync(null);
+                Rebuild();
+            }
         }
 
         // set as the dropdown does: the layer row, its swatch and the dropdown follow

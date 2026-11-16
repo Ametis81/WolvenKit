@@ -1701,6 +1701,111 @@ public class DocumentTools
             ? File.GetLastWriteTimeUtc(path)
             : null;
 
+    /// <summary>
+    /// Whether a multilayer template is the project's own: a file of the project under a path the game doesn't use.
+    /// Changing such a template doesn't change the game's template, which every material using it would pick up.
+    /// </summary>
+    public bool IsCustomMultilayerTemplate(string templatePath) =>
+        !string.IsNullOrEmpty(templatePath) &&
+        GetProjectFileStamp(templatePath) is not null &&
+        !_archiveManager.Lookup(templatePath, ArchiveManagerScope.Basegame).HasValue;
+
+    /// <summary>
+    /// A free path for a copy of a multilayer template in the project:
+    /// <c>author\project\mltemplates\name.mltemplate</c>, numbered if the name is taken.
+    /// </summary>
+    public string GetCustomMultilayerTemplatePath(string templatePath)
+    {
+        var project = _projectManager.ActiveProject;
+        var author = project?.Author is { Length: > 0 } a ? a : _settingsManager.ModderName is { Length: > 0 } m ? m : "modded";
+        var directory = Path.Join(author.ToArchiveFileName(), (project?.Name ?? "project").ToArchiveFileName(), "mltemplates");
+        var name = Path.GetFileNameWithoutExtension(templatePath.Replace('\\', Path.DirectorySeparatorChar));
+        if (string.IsNullOrEmpty(name))
+        {
+            name = "template";
+        }
+
+        var candidate = Path.Join(directory, name + ".mltemplate");
+        for (var i = 1; IsMultilayerTemplatePathTaken(candidate); i++)
+        {
+            candidate = Path.Join(directory, $"{name}_{i:00}.mltemplate");
+        }
+
+        return candidate;
+    }
+
+    private bool IsMultilayerTemplatePathTaken(string relativePath) =>
+        GetProjectFileStamp(relativePath) is not null ||
+        _archiveManager.Lookup(relativePath, ArchiveManagerScope.BasegameAndMods).HasValue;
+
+    /// <summary>
+    /// Copies a multilayer template (a file of the project or of the game) into the project under a path of its
+    /// own. Refuses paths the game uses, so the copy never replaces the game's template, and doesn't overwrite.
+    /// </summary>
+    /// <returns>the depot path of the copy, or null with the reason in <paramref name="error"/></returns>
+    public string? CopyMultilayerTemplateToProject(string templatePath, string targetPath, out string error)
+    {
+        error = "";
+        if (_projectManager.ActiveProject is not { } project)
+        {
+            error = "No project is open.";
+            return null;
+        }
+
+        var target = targetPath.Trim().Trim('"').Replace('/', '\\').TrimStart('\\');
+        if (!target.EndsWith(".mltemplate", StringComparison.OrdinalIgnoreCase))
+        {
+            target += ".mltemplate";
+        }
+
+        if (Path.IsPathRooted(target) || target.Split('\\').Any(part => part is "" or "." or ".."))
+        {
+            error = $"\"{target}\" is not a relative depot path.";
+            return null;
+        }
+
+        if (string.Equals(target, templatePath, StringComparison.OrdinalIgnoreCase) ||
+            _archiveManager.Lookup(target, ArchiveManagerScope.Basegame).HasValue)
+        {
+            error = $"\"{target}\" is a path of the game. Pick a path of your own, so the game's template stays as it is.";
+            return null;
+        }
+
+        var targetFile = project.GetAbsolutePath(target);
+        if (File.Exists(targetFile))
+        {
+            error = $"\"{target}\" already exists in the project.";
+            return null;
+        }
+
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(targetFile)!);
+            if (project.GetAbsolutePath(templatePath) is string sourceFile && File.Exists(sourceFile))
+            {
+                File.Copy(sourceFile, targetFile);
+            }
+            else if (_archiveManager.Lookup(templatePath) is { HasValue: true } gameFile)
+            {
+                using var stream = new FileStream(targetFile, FileMode.CreateNew);
+                gameFile.Value.Extract(stream);
+            }
+            else
+            {
+                error = $"\"{templatePath}\" was found neither in the project nor in the game.";
+                return null;
+            }
+        }
+        catch (Exception e)
+        {
+            error = e.Message;
+            return null;
+        }
+
+        _loggerService.Info($"Copied multilayer template {templatePath} to {target}");
+        return target;
+    }
+
     public List<IRedRef> CollectDependencies(IRedRef redRef)
     {
         if (redRef.DepotPath == ResourcePath.Empty || redRef.DepotPath.GetResolvedText() is not string depotPath)
