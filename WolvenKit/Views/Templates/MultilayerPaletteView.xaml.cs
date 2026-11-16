@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Globalization;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -19,6 +20,9 @@ namespace WolvenKit.Views.Editors
     public partial class MultilayerPaletteView : UserControl
     {
         private const double SwatchSize = 14;
+
+        /// <summary>Space between the blocks of two groups.</summary>
+        private const double GroupGap = 8;
 
         /// <summary>Open or closed for all layers and files of the session.</summary>
         private static bool s_isExpanded = true;
@@ -98,9 +102,16 @@ namespace WolvenKit.Views.Editors
             PaletteExpander.SetCurrentValue(HeaderedContentControl.HeaderProperty,
                 $"Palette: {colors.Count} colours in {rows.Count} groups");
 
+            // same width for every group, so the blocks line up in columns
+            var groupWidth = rows.Max(row => row.Count) * (SwatchSize + 2);
             foreach (var row in rows)
             {
-                var panel = new StackPanel { Orientation = Orientation.Horizontal };
+                var panel = new StackPanel
+                {
+                    Orientation = Orientation.Horizontal,
+                    Width = groupWidth,
+                    Margin = new Thickness(0, 0, GroupGap, GroupGap / 2),
+                };
                 foreach (var color in row)
                 {
                     panel.Children.Add(CreateSwatch(color, color.Name == current));

@@ -15,11 +15,14 @@
             Header="Palette"
             IsExpanded="True">
             <ScrollViewer
-                MaxHeight="240"
-                HorizontalScrollBarVisibility="Auto"
+                MaxHeight="320"
+                HorizontalScrollBarVisibility="Disabled"
                 VerticalScrollBarVisibility="Auto">
-                <!-- one row per group of the template's colours, the group's base colour first -->
-                <StackPanel x:Name="RowsPanel" />
+                <!--
+                    one block per group of the template's colours, the group's base colour first; the blocks are
+                    as wide as the largest group and flow left to right, then down, in palette order
+                -->
+                <WrapPanel x:Name="RowsPanel" Orientation="Horizontal" />
             </ScrollViewer>
         </Expander>
 
