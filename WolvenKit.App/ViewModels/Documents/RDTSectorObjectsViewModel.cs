@@ -6,6 +6,7 @@ using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using WolvenKit.App.Helpers;
+using WolvenKit.App.Interaction;
 using WolvenKit.RED4.Types;
 
 namespace WolvenKit.App.ViewModels.Documents;
@@ -58,6 +59,17 @@ public partial class RDTSectorObjectsViewModel : RedDocumentTabViewModel
 
     [ObservableProperty] private SectorObject? _selectedObject;
 
+    [ObservableProperty] private bool _onlyInXl;
+
+    /// <summary>Result of the last .xl check, shown under the summary; empty without one.</summary>
+    [ObservableProperty] private string _xlSummary = "";
+
+    [ObservableProperty] private bool _hasXl;
+
+    // the sector's block of the checked .xl: applied again each time the list is built
+    private XlSectorBlock? _xlBlock;
+    private string _xlFileName = "";
+
     public IReadOnlyList<string> Categories { get; }
 
     public IReadOnlyList<string> TargetGroups { get; }
@@ -77,6 +89,8 @@ public partial class RDTSectorObjectsViewModel : RedDocumentTabViewModel
     partial void OnOnlyCookedChanged(bool value) => FilterChanged?.Invoke(this, EventArgs.Empty);
 
     partial void OnOnlyHiddenChanged(bool value) => FilterChanged?.Invoke(this, EventArgs.Empty);
+
+    partial void OnOnlyInXlChanged(bool value) => FilterChanged?.Invoke(this, EventArgs.Empty);
 
     partial void OnSelectedCategoryChanged(string value) => FilterChanged?.Invoke(this, EventArgs.Empty);
 
@@ -109,6 +123,7 @@ public partial class RDTSectorObjectsViewModel : RedDocumentTabViewModel
             }
         }
 
+        ApplyXl(objects);
         Objects = objects;
 
         var cooked = objects.Count(o => o.IsCooked);
@@ -140,6 +155,11 @@ public partial class RDTSectorObjectsViewModel : RedDocumentTabViewModel
         }
 
         if (OnlyHidden && !item.IsHidden)
+        {
+            return false;
+        }
+
+        if (OnlyInXl && item.XlMark is null)
         {
             return false;
         }
@@ -180,6 +200,108 @@ public partial class RDTSectorObjectsViewModel : RedDocumentTabViewModel
         {
             NodeOpenRequested?.Invoke(this, target.NodeIndex);
         }
+    }
+
+    /// <summary>
+    /// Checks an ArchiveXL file's removals against this sector, as ArchiveXL would: the rows it removes are marked,
+    /// those it no longer matches (another class, another count) are flagged, and a report lists every problem.
+    /// </summary>
+    [RelayCommand]
+    private void CheckXl()
+    {
+        var dialog = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = "Check an ArchiveXL removal against this sector",
+            Filter = "ArchiveXL files (*.xl)|*.xl|YAML files (*.yaml;*.yml)|*.yaml;*.yml|All files (*.*)|*.*",
+        };
+        if (dialog.ShowDialog() != true)
+        {
+            return;
+        }
+
+        List<XlSectorBlock> blocks;
+        try
+        {
+            blocks = SectorXlCheck.Parse(System.IO.File.ReadAllText(dialog.FileName));
+        }
+        catch (Exception e)
+        {
+            Interactions.ShowMessageBox($"The file couldn't be read as YAML:\n{e.Message}", "Check .xl", WMessageBoxButtons.Ok, WMessageBoxImage.Error);
+            return;
+        }
+
+        if (SectorXlCheck.FindBlock(blocks, RelativeFilePath) is not { } block)
+        {
+            Interactions.ShowMessageBox(
+                $"{System.IO.Path.GetFileName(dialog.FileName)} has no removals for {RelativeFilePath} " +
+                $"({blocks.Count} sector(s) in the file).", "Check .xl", WMessageBoxButtons.Ok, WMessageBoxImage.Information);
+            return;
+        }
+
+        _xlBlock = block;
+        _xlFileName = System.IO.Path.GetFileName(dialog.FileName);
+        Refresh();
+
+        var problems = SectorXlCheck.Check(block, Objects).Problems;
+        if (problems.Count > 0)
+        {
+            var shown = string.Join("\n", problems.Take(25));
+            var more = problems.Count > 25 ? $"\n… and {problems.Count - 25} more" : "";
+            Interactions.ShowMessageBox($"{_xlFileName}:\n\n{shown}{more}", "Check .xl", WMessageBoxButtons.Ok, WMessageBoxImage.Warning);
+        }
+    }
+
+    /// <summary>Forgets the checked .xl.</summary>
+    [RelayCommand]
+    private void ClearXl()
+    {
+        _xlBlock = null;
+        _xlFileName = "";
+        OnlyInXl = false;
+        Refresh();
+    }
+
+    private void ApplyXl(IReadOnlyList<SectorObject> objects)
+    {
+        HasXl = _xlBlock is not null;
+        if (_xlBlock is not { } block)
+        {
+            XlSummary = "";
+            return;
+        }
+
+        var result = SectorXlCheck.Check(block, objects);
+        foreach (var (index, deletion) in result.Valid)
+        {
+            var o = objects[index];
+            if (deletion.Elements.Count > 0)
+            {
+                foreach (var element in o.Elements)
+                {
+                    element.IsChecked = deletion.Elements.Contains(element.Index);
+                }
+
+                var what = deletion.ElementKind == SectorElementKind.Actor ? "actors" : "instances";
+                o.XlMark = $"removes {what} {string.Join(", ", deletion.Elements)}";
+            }
+            else
+            {
+                o.XlMark = "removed";
+            }
+
+            // a sector the file no longer fits is skipped as a whole
+            o.XlProblem = result.SectorRejected;
+        }
+
+        foreach (var (index, problem) in result.RowProblems)
+        {
+            objects[index].XlMark = "⚠ " + problem;
+            objects[index].XlProblem = true;
+        }
+
+        XlSummary = string.Format(CultureInfo.CurrentCulture, "{0}: {1} removal(s), {2} match, {3} don't{4}",
+            _xlFileName, block.Deletions.Count, result.Valid.Count, result.Problems.Count - (result.SectorRejected ? 1 : 0),
+            result.SectorRejected ? " · expectedNodes differs: ArchiveXL skips the whole sector" : "");
     }
 
     /// <summary>The object picked in the sector preview: selected when this tab is shown.</summary>

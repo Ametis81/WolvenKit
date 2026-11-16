@@ -19,6 +19,27 @@
                     DockPanel.Dock="Right"
                     Margin="{DynamicResource WolvenKitMarginTinyLeft}"
                     Padding="8,2"
+                    Content="Clear .xl"
+                    Visibility="{Binding HasXl, Converter={StaticResource BooleanToVisibilityConverter}}"
+                    Command="{Binding ClearXlCommand}" />
+                <Button
+                    DockPanel.Dock="Right"
+                    Margin="{DynamicResource WolvenKitMarginTinyLeft}"
+                    Padding="8,2"
+                    Content="Check .xl..."
+                    ToolTip="Check an ArchiveXL removal against this sector, as ArchiveXL does: marks what it removes, flags what no longer matches (after a game patch the indices point at other objects)"
+                    Command="{Binding CheckXlCommand}" />
+                <CheckBox
+                    DockPanel.Dock="Right"
+                    Margin="{DynamicResource WolvenKitMarginTinyLeft}"
+                    VerticalAlignment="Center"
+                    Content="Only in .xl"
+                    Visibility="{Binding HasXl, Converter={StaticResource BooleanToVisibilityConverter}}"
+                    IsChecked="{Binding OnlyInXl}" />
+                <Button
+                    DockPanel.Dock="Right"
+                    Margin="{DynamicResource WolvenKitMarginTinyLeft}"
+                    Padding="8,2"
                     Content="Refresh"
                     ToolTip="Read the sector again (edits made in the data tab)"
                     Command="{Binding RefreshCommand}" />
@@ -60,6 +81,11 @@
                 Margin="{DynamicResource WolvenKitMarginTinyTop}"
                 Foreground="{DynamicResource ContentForegroundAlt}"
                 Text="{Binding Summary}" />
+            <TextBlock
+                Margin="{DynamicResource WolvenKitMarginTinyTop}"
+                Foreground="{DynamicResource WolvenKitOrange}"
+                Text="{Binding XlSummary}"
+                Visibility="{Binding HasXl, Converter={StaticResource BooleanToVisibilityConverter}}" />
         </StackPanel>
 
         <DataGrid
@@ -205,6 +231,9 @@
                             <Setter Property="BorderBrush" Value="{DynamicResource PrimaryBrush}" />
                             <Setter Property="FontWeight" Value="SemiBold" />
                         </Trigger>
+                        <DataTrigger Binding="{Binding XlProblem}" Value="True">
+                            <Setter Property="Foreground" Value="{DynamicResource WolvenKitOrange}" />
+                        </DataTrigger>
                         <DataTrigger Binding="{Binding IsHidden}" Value="True">
                             <Setter Property="FontStyle" Value="Italic" />
                             <Setter Property="Foreground" Value="{DynamicResource ContentForegroundAlt}" />
@@ -246,6 +275,10 @@
                     Width="280"
                     Header="Object"
                     Binding="{Binding Name}" />
+                <DataGridTextColumn
+                    Width="200"
+                    Header=".xl"
+                    Binding="{Binding XlMark}" />
                 <DataGridTextColumn
                     Width="110"
                     Header="Appearance"

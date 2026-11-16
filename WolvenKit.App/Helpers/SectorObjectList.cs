@@ -66,6 +66,12 @@ public sealed class SectorObject
 
     public bool HasElements => Elements.Count > 0;
 
+    /// <summary>What a checked .xl does with this object ("removed", or the problem ArchiveXL would report); null if nothing.</summary>
+    public string? XlMark { get; set; }
+
+    /// <summary>The checked .xl means this object but doesn't match it any more.</summary>
+    public bool XlProblem { get; set; }
+
     /// <summary>File name of the object's resource, else its debug name, else its kind.</summary>
     public required string Name { get; init; }
 
