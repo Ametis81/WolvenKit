@@ -330,7 +330,7 @@ public static class SectorObjectList
             .OfType<IRedRef>()
             .Select(ResourceText)
             .FirstOrDefault(text => text is not null);
-        var appearance = Property(type, "MeshAppearance")?.GetValue(inner) is CName name ? AppearanceText(name) : null;
+        var appearance = Property(type, "MeshAppearance")?.GetValue(inner) is CName appearanceName ? AppearanceText(appearanceName) : null;
 
         string? detail = null;
         if (Property(type, "NumActors")?.GetValue(inner) is CUInt16 actors)
@@ -368,8 +368,8 @@ public static class SectorObjectList
             .Select(ResourceText)
             .FirstOrDefault(text => text is not null);
 
-        var appearance = (TryGetProperty(node, "meshAppearance") ?? TryGetProperty(node, "appearanceName")) is CName name
-            ? AppearanceText(name)
+        var appearance = (TryGetProperty(node, "meshAppearance") ?? TryGetProperty(node, "appearanceName")) is CName appearanceName
+            ? AppearanceText(appearanceName)
             : null;
 
         return (resource, appearance, null);
