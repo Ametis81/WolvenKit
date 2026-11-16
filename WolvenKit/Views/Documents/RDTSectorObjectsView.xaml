@@ -63,6 +63,8 @@
             IsReadOnly="True"
             SelectionMode="Single"
             HeadersVisibility="Column"
+            CanUserResizeColumns="True"
+            HorizontalScrollBarVisibility="Auto"
             GridLinesVisibility="None"
             EnableRowVirtualization="True"
             VirtualizingPanel.IsVirtualizing="True"
@@ -145,39 +147,39 @@
 
             <DataGrid.Columns>
                 <DataGridTextColumn
-                    Width="2*"
+                    Width="280"
                     Header="Object"
                     Binding="{Binding Name}" />
                 <DataGridTextColumn
-                    Width="Auto"
+                    Width="110"
                     Header="Appearance"
                     Binding="{Binding Appearance}" />
                 <DataGridTextColumn
-                    Width="Auto"
+                    Width="40"
                     Header=""
                     Binding="{Binding SharedText}" />
                 <DataGridTextColumn
-                    Width="Auto"
+                    Width="100"
                     Header="Detail"
                     Binding="{Binding Detail}" />
                 <DataGridTextColumn
-                    Width="Auto"
+                    Width="160"
                     Header="Where"
                     Binding="{Binding Where}" />
                 <DataGridTextColumn
-                    Width="*"
+                    Width="230"
                     Header="Class"
                     Binding="{Binding ClassName}" />
                 <DataGridTextColumn
-                    Width="*"
+                    Width="190"
                     Header="Flags"
                     Binding="{Binding Categories}" />
                 <DataGridCheckBoxColumn
-                    Width="Auto"
+                    Width="60"
                     Header="Hidden"
                     Binding="{Binding IsHidden, Mode=OneWay}" />
                 <DataGridTextColumn
-                    Width="Auto"
+                    Width="180"
                     Header="Position"
                     Binding="{Binding Position}" />
             </DataGrid.Columns>
