@@ -106,6 +106,17 @@ public partial class ChunkViewModel
             return;
         }
 
+        // allowed, but the two files would override each other
+        if (tools.GetInstalledModArchiveName(DocumentTools.NormalizeMultilayerTemplatePath(target)) is { } modArchive &&
+            Interactions.ShowMessageBox(
+                $"An installed mod ({modArchive}) already has a file at this path.\n\n" +
+                "Your copy and the mod's file would override each other, depending on the load order. " +
+                "A path of your own avoids that.\n\nCopy to this path anyway?",
+                title, WMessageBoxButtons.YesNo, WMessageBoxImage.Warning) != WMessageBoxResult.Yes)
+        {
+            return;
+        }
+
         if (tools.CopyMultilayerTemplateToProject(source, target, out var error) is not { } copy)
         {
             Interactions.ShowMessageBox(error, title, WMessageBoxButtons.Ok, WMessageBoxImage.Error);

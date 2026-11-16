@@ -1734,6 +1734,32 @@ public class DocumentTools
         return candidate;
     }
 
+    /// <summary>A path as typed, as a depot path of a template: backslashes, no quotes, .mltemplate at the end.</summary>
+    public static string NormalizeMultilayerTemplatePath(string targetPath)
+    {
+        var target = targetPath.Trim().Trim('"').Replace('/', '\\').TrimStart('\\');
+        return target.EndsWith(".mltemplate", StringComparison.OrdinalIgnoreCase) ? target : target + ".mltemplate";
+    }
+
+    /// <summary>
+    /// The name of an installed mod's archive that has a file at this path, or null. A project file at that path
+    /// would override the mod's file, or the other way round, depending on the load order.
+    /// </summary>
+    public string? GetInstalledModArchiveName(string relativePath)
+    {
+        try
+        {
+            return _archiveManager.Lookup(relativePath, ArchiveManagerScope.Mods) is { HasValue: true } modFile
+                ? modFile.Value.GetArchive().Name
+                : null;
+        }
+        catch (Exception e)
+        {
+            _loggerService.Warning($"Could not look up {relativePath} in installed mods: {e.Message}");
+            return null;
+        }
+    }
+
     private bool IsMultilayerTemplatePathTaken(string relativePath) =>
         GetProjectFileStamp(relativePath) is not null ||
         _archiveManager.Lookup(relativePath, ArchiveManagerScope.BasegameAndMods).HasValue;
@@ -1752,12 +1778,7 @@ public class DocumentTools
             return null;
         }
 
-        var target = targetPath.Trim().Trim('"').Replace('/', '\\').TrimStart('\\');
-        if (!target.EndsWith(".mltemplate", StringComparison.OrdinalIgnoreCase))
-        {
-            target += ".mltemplate";
-        }
-
+        var target = NormalizeMultilayerTemplatePath(targetPath);
         if (Path.IsPathRooted(target) || target.Split('\\').Any(part => part is "" or "." or ".."))
         {
             error = $"\"{target}\" is not a relative depot path.";
