@@ -333,16 +333,7 @@
                         Grid.Column="2"
                         Margin="{DynamicResource WolvenKitMarginTinyRight}"
                         Orientation="Horizontal">
-                        <TextBlock
-                            Name="PropertyDescriptor"
-                            Margin="{DynamicResource WolvenKitMarginTinyRight}"
-                            Style="{StaticResource PropertyKeyStyle}"
-                            Text="{Binding Descriptor,
-                                           Mode=OneWay,
-                                           UpdateSourceTrigger=PropertyChanged}"
-                            TextTrimming="CharacterEllipsis" />
-
-                        <!-- colour of a multilayer colorScale override (mltemplate entries and their v, mlsetup layers) -->
+                        <!-- colour of a multilayer colorScale override, left of its name: mltemplate entries (the name is the descriptor) and their v -->
                         <Border
                             Width="{DynamicResource WolvenKitIconMicro}"
                             Height="{DynamicResource WolvenKitIconMicro}"
@@ -357,7 +348,54 @@
                             </Border.Background>
                             <Border.Style>
                                 <Style TargetType="Border">
+                                    <Setter Property="Visibility" Value="Collapsed" />
                                     <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Value, Mode=OneWay}" Value="">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding Value, Mode=OneWay}" Value="{x:Null}">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding PreviewColor, Mode=OneWay}" Value="{x:Null}">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                        </Border>
+
+                        <TextBlock
+                            Name="PropertyDescriptor"
+                            Margin="{DynamicResource WolvenKitMarginTinyRight}"
+                            Style="{StaticResource PropertyKeyStyle}"
+                            Text="{Binding Descriptor,
+                                           Mode=OneWay,
+                                           UpdateSourceTrigger=PropertyChanged}"
+                            TextTrimming="CharacterEllipsis" />
+
+                        <!-- the same, left of the value: mlsetup layers and their colorScale (the colour's name is the value) -->
+                        <Border
+                            Width="{DynamicResource WolvenKitIconMicro}"
+                            Height="{DynamicResource WolvenKitIconMicro}"
+                            Margin="{DynamicResource WolvenKitMarginTinyRight}"
+                            VerticalAlignment="Center"
+                            BorderBrush="{DynamicResource BorderAlt}"
+                            BorderThickness="1"
+                            SnapsToDevicePixels="True"
+                            ToolTip="{Binding PreviewColor, Mode=OneWay}">
+                            <Border.Background>
+                                <SolidColorBrush Color="{Binding PreviewColor, Mode=OneWay, TargetNullValue=Transparent}" />
+                            </Border.Background>
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Value, Mode=OneWay}" Value="">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding Value, Mode=OneWay}" Value="{x:Null}">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
                                         <DataTrigger Binding="{Binding PreviewColor, Mode=OneWay}" Value="{x:Null}">
                                             <Setter Property="Visibility" Value="Collapsed" />
                                         </DataTrigger>
