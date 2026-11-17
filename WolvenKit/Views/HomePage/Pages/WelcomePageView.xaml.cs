@@ -17,7 +17,8 @@ namespace WolvenKit.Views.HomePage.Pages
     {
         private bool _isStackedLayout;
         private bool _layoutModeInitialized;
-        private bool _rebindAfterThemeChange;
+        private bool _reskinned;
+        private bool _refreshQueued;
         private Window _hostWindow;
 
         public WelcomePageView()
@@ -115,13 +116,12 @@ namespace WolvenKit.Views.HomePage.Pages
 
         /// <summary>
         /// Re-applying the skin re-templates the Syncfusion CardViews, which then show no cards although the
-        /// project lists are unchanged, and new collections alone don't bring them back. After a theme change
-        /// the ItemsSource bindings are set again the next time the lists are filled while Home is on screen.
-        /// The switch hides the main window for a moment, so that is usually when it comes back.
+        /// project lists are unchanged. From then on, handing them new collections is not enough either: the
+        /// ItemsSource bindings have to be cleared and set again on every refill.
         /// </summary>
         void IThemeAware.OnThemeChanged()
         {
-            _rebindAfterThemeChange = true;
+            _reskinned = true;
             if (IsVisible)
             {
                 RefreshProjectListsWhenIdle();
@@ -140,46 +140,53 @@ namespace WolvenKit.Views.HomePage.Pages
             }
         }
 
-        private void RefreshProjectListsWhenIdle() =>
+        /// <summary>
+        /// One refill per idle: the theme switch and the window coming back both ask for one.
+        /// </summary>
+        private void RefreshProjectListsWhenIdle()
+        {
+            if (_refreshQueued)
+            {
+                return;
+            }
+
+            _refreshQueued = true;
             Dispatcher.BeginInvoke(RefreshProjectLists, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+        }
 
         /// <summary>
-        /// Fills the project lists again. The view model hands both CardViews new collections. The bindings are
-        /// only set again after a theme change: doing that every time left the cards out when Home was opened
-        /// from a project.
+        /// Fills the project lists again with new collections. Once the page was re-skinned, the ItemsSource
+        /// bindings are cleared first and set again afterwards (before that, clearing them left the cards out
+        /// when Home was opened from a project).
         /// </summary>
         private void RefreshProjectLists()
         {
-            // A refresh queued while the window is hidden for the theme switch would set the bindings again
-            // before the skin is done; the one queued when the window comes back does it.
+            _refreshQueued = false;
+
+            // A refill while the window is hidden for the theme switch comes too early; the window coming back
+            // asks for another one.
             if (ViewModel is null || !IsVisible)
             {
                 return;
             }
 
-            ViewModel.RefreshProjectLists();
-
-            var rebind = _rebindAfterThemeChange;
+            var rebind = _reskinned;
             if (rebind)
             {
-                _rebindAfterThemeChange = false;
-                RebindItemsSource(PinnedCardView, nameof(WelcomePageViewModel.FancyPinnedProjects));
-                RebindItemsSource(RecentCardView, nameof(WelcomePageViewModel.FancyProjects));
+                BindingOperations.ClearBinding(PinnedCardView, ItemsControl.ItemsSourceProperty);
+                BindingOperations.ClearBinding(RecentCardView, ItemsControl.ItemsSourceProperty);
+            }
+
+            ViewModel.RefreshProjectLists();
+
+            if (rebind)
+            {
+                PinnedCardView.SetBinding(ItemsControl.ItemsSourceProperty, new Binding(nameof(WelcomePageViewModel.FancyPinnedProjects)));
+                RecentCardView.SetBinding(ItemsControl.ItemsSourceProperty, new Binding(nameof(WelcomePageViewModel.FancyProjects)));
             }
 
             Locator.Current.GetService<ILoggerService>()?.Debug(
-                $"Welcome page: project lists refilled ({ViewModel.FancyPinnedProjects.Count} pinned, {ViewModel.FancyProjects.Count} recent{(rebind ? ", bindings set again after theme change" : "")})");
-        }
-
-        private static void RebindItemsSource(ItemsControl cardView, string path)
-        {
-            if (cardView is null)
-            {
-                return;
-            }
-
-            BindingOperations.ClearBinding(cardView, ItemsControl.ItemsSourceProperty);
-            cardView.SetBinding(ItemsControl.ItemsSourceProperty, new Binding(path));
+                $"Welcome page: project lists refilled ({ViewModel.FancyPinnedProjects.Count} pinned, {ViewModel.FancyProjects.Count} recent{(rebind ? ", bindings set again (re-skinned)" : "")})");
         }
 
         /// <summary>
