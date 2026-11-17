@@ -50,6 +50,7 @@
             FilterRowPosition="FixedTop"
             IsReadOnly="True"
             ItemsSource="{Binding LocKeys}"
+            RowSelectionBrush="{DynamicResource WolvenKitListSelection}"
             SelectedItem="{Binding SelectedLocKey}"
             SelectionMode="Extended">
             <syncfusion:SfDataGrid.Columns>
