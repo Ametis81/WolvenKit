@@ -18,7 +18,7 @@
         <Grid.Resources>
             <ControlTemplate
                 x:Key="WolvenKitButtonsTemplate"
-                TargetType="{x:Type ButtonBase}">
+                TargetType="{x:Type ToggleButton}">
                 <!--
                     The icon is painted by IconColor through the shape of the button content (OpacityMask), so its
                     color comes only from the triggers below. Syncfusion sets the Foreground of some header buttons
