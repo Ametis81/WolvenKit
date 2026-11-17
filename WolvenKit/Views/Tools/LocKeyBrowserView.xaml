@@ -49,6 +49,7 @@
             EnableDataVirtualization="True"
             FilterRowPosition="FixedTop"
             IsReadOnly="True"
+            BorderBrush="{DynamicResource WolvenKitGray37}"
             ItemsSource="{Binding LocKeys}"
             RowSelectionBrush="{DynamicResource WolvenKitListSelection}"
             SelectedItem="{Binding SelectedLocKey}"
