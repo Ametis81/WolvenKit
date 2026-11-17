@@ -74,8 +74,6 @@ namespace WolvenKit.Views.Shell
                 // with the Syncfusion template
                 EventManager.RegisterClassHandler(typeof(System.Windows.Controls.Primitives.ToggleButton), LoadedEvent,
                     new RoutedEventHandler((sender, _) => G_Dock?.OnToggleButtonLoaded(sender as System.Windows.Controls.Primitives.ToggleButton)));
-                EventManager.RegisterClassHandler(typeof(TabControlExt), LoadedEvent,
-                    new RoutedEventHandler((sender, _) => G_Dock?.LogTabStripOnce(sender as TabControlExt)));
                 EventManager.RegisterClassHandler(typeof(System.Windows.Controls.Primitives.ButtonBase), LoadedEvent,
                     new RoutedEventHandler((sender, _) => G_Dock?.OnTabListButtonLoaded(sender as System.Windows.Controls.Primitives.ButtonBase)));
                 EventManager.RegisterClassHandler(typeof(System.Windows.Controls.ContextMenu), System.Windows.Controls.ContextMenu.OpenedEvent,
@@ -202,7 +200,7 @@ namespace WolvenKit.Views.Shell
             // buttons of the tab strip (tab list arrow, scroll arrows), not the tabs nor their content
             if (button is null
                 || FindTabStripOwner(button) is not { } tabControl
-                || tabControl is DocumentTabControl
+                || !UsesWolvenKitTabStyle(tabControl)
                 || PART_DockingManager.TryFindResource("WolvenKitButtonsTemplate") is not ControlTemplate template)
             {
                 return;
@@ -226,7 +224,7 @@ namespace WolvenKit.Views.Shell
         private static TabControlExt FindTabStripOwner(DependencyObject button)
         {
             var element = VisualTreeHelper.GetParent(button);
-            for (var depth = 0; depth < 40 && element is not null; depth++)
+            for (var depth = 0; depth < 15 && element is not null; depth++)
             {
                 switch (element)
                 {
@@ -240,41 +238,20 @@ namespace WolvenKit.Views.Shell
             return null;
         }
 
-        private static readonly HashSet<string> s_tabStripsLogged = [];
-
-        /// <summary>Logs once which controls a tab strip is made of (to find its buttons).</summary>
-        private void LogTabStripOnce(TabControlExt tabControl)
+        private static bool UsesWolvenKitTabStyle(TabControlExt tabControl)
         {
-            if (tabControl is null || tabControl is DocumentTabControl || !s_tabStripsLogged.Add(tabControl.Name ?? ""))
+            if (Application.Current?.TryFindResource("WolvenKitTabControl") is not Style ours)
             {
-                return;
+                return false;
             }
-
-            var parts = new List<string>();
-            CollectTabStripParts(tabControl, parts, 0);
-            _logger.Debug($"Themes: tab strip parts of {tabControl.Name}: {string.Join(", ", parts.Distinct())}");
-        }
-
-        private static void CollectTabStripParts(DependencyObject element, List<string> parts, int depth)
-        {
-            if (depth > 40)
+            for (var style = tabControl.Style; style is not null; style = style.BasedOn)
             {
-                return;
-            }
-            var count = VisualTreeHelper.GetChildrenCount(element);
-            for (var i = 0; i < count; i++)
-            {
-                var child = VisualTreeHelper.GetChild(element, i);
-                if (child is TabItemExt)
+                if (ReferenceEquals(style, ours))
                 {
-                    continue;
+                    return true;
                 }
-                if (child is System.Windows.Controls.Control control)
-                {
-                    parts.Add(string.IsNullOrEmpty(control.Name) ? control.GetType().Name : $"{control.GetType().Name} {control.Name}");
-                }
-                CollectTabStripParts(child, parts, depth + 1);
             }
+            return false;
         }
 
         private bool _tabListMenuLogged;
