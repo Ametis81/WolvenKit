@@ -85,7 +85,7 @@ namespace WolvenKit.Helpers
 
                     if (fresh[typeof(PropertyGrid)] is Style style)
                     {
-                        grid.SetCurrentValue(FrameworkElement.StyleProperty, style);
+                        grid.Style = style;
                     }
                 }
                 catch (Exception e)
