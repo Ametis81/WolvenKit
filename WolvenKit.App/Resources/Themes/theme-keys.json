@@ -675,7 +675,7 @@
       "group": "Palette",
       "displayName": "Cyan Shadow50",
       "kind": "Color",
-      "description": "Translucent cyan backgrounds (LocKey browser rows, cyan highlights)",
+      "description": "Translucent cyan backgrounds (cyan highlights)",
       "derivedBrushes": [
         "WolvenKitCyanShadow50",
         "BackgroundColor_Cyan"

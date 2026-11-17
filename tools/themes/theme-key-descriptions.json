@@ -78,7 +78,7 @@
   "WolvenKitTanColor": "Folder icons, resource paths and references in the property tree",
   "WolvenKitOrangeColor": "\"Copy path\" button in the Project Explorer",
   "WolvenKitOrangeShadowColor": "Hovered \"copy path\" button in the Project Explorer",
-  "WolvenKitCyanShadow50Color": "Translucent cyan backgrounds (LocKey browser rows, cyan highlights)",
+  "WolvenKitCyanShadow50Color": "Translucent cyan backgrounds (cyan highlights)",
   "WolvenKitCyanShadow25Color": "Faint translucent cyan (not used by WolvenKit views at the moment)",
   "WolvenKitRedShadowColor": "Darker red: hovered tabs in graph editors, welcome page and tree highlights",
   "WolvenKitRedShadow50Color": "Translucent red background: invalid reference / CName fields",
