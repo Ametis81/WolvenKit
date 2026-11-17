@@ -53,6 +53,15 @@
             RowSelectionBrush="{DynamicResource WolvenKitListSelection}"
             SelectedItem="{Binding SelectedLocKey}"
             SelectionMode="Extended">
+            <!-- grid lines in the theme color, as in the type template manager -->
+            <syncfusion:SfDataGrid.Resources>
+                <Style TargetType="syncfusion:GridCell">
+                    <Setter Property="BorderBrush" Value="{DynamicResource WolvenKitGray37}" />
+                </Style>
+                <Style TargetType="syncfusion:GridHeaderCellControl">
+                    <Setter Property="BorderBrush" Value="{DynamicResource WolvenKitGray37}" />
+                </Style>
+            </syncfusion:SfDataGrid.Resources>
             <syncfusion:SfDataGrid.Columns>
                 <syncfusion:GridNumericColumn
                     ColumnSizer="Auto"
