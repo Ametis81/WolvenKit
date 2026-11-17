@@ -64,6 +64,13 @@ namespace WolvenKit.Views.Shell
             {
                 themeService.Register(this);
             }
+
+            if (!s_headerHandlerRegistered)
+            {
+                s_headerHandlerRegistered = true;
+                EventManager.RegisterClassHandler(typeof(DockHeaderPresenter), LoadedEvent,
+                    new RoutedEventHandler((sender, _) => G_Dock?.UseOwnCloseButtonTemplate(sender as DependencyObject)));
+            }
         }
 
         /// <summary>
@@ -81,6 +88,76 @@ namespace WolvenKit.Views.Shell
 
             // after the skin was re-applied (it runs synchronously on the same switch)
             Dispatcher.BeginInvoke(RenewHeaderButtonTemplates, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+        }
+
+        private static bool s_headerHandlerRegistered;
+        private bool _headerButtonsLogged;
+
+        /// <summary>
+        /// The close button in a panel header doesn't use CloseButtonTemplate: the Syncfusion header template gives
+        /// it its own template (accent square on hover, its own colors, the active panel's one differs from the
+        /// buttons next to it). Give it ours, like the menu and pin buttons. A local value, so the header's
+        /// triggers don't swap it back.
+        /// </summary>
+        private void UseOwnCloseButtonTemplate(DependencyObject header)
+        {
+            if (header is null || PART_DockingManager.TryFindResource("WolvenKitButtonsTemplate") is not ControlTemplate template)
+            {
+                return;
+            }
+
+            var buttons = new List<System.Windows.Controls.Primitives.ToggleButton>();
+            CollectToggleButtons(header, buttons);
+
+            if (!_headerButtonsLogged && buttons.Count > 0)
+            {
+                _headerButtonsLogged = true;
+                _logger.Debug($"Themes: panel header buttons: {string.Join(", ", buttons.Select(b => string.IsNullOrEmpty(b.Name) ? "(unnamed)" : b.Name))}");
+            }
+
+            foreach (var button in buttons)
+            {
+                if (button.Name.Contains("Close", StringComparison.OrdinalIgnoreCase) && !ReferenceEquals(button.Template, template))
+                {
+#pragma warning disable WPF0041 // a local value on purpose: the header template's own setters must not win
+                    button.SetValue(System.Windows.Controls.Control.TemplateProperty, template);
+#pragma warning restore WPF0041
+                }
+            }
+        }
+
+        private static void ForEachDockHeader(DependencyObject element, Action<DependencyObject> action)
+        {
+            var count = VisualTreeHelper.GetChildrenCount(element);
+            for (var i = 0; i < count; i++)
+            {
+                var child = VisualTreeHelper.GetChild(element, i);
+                if (child is DockHeaderPresenter)
+                {
+                    action(child);
+                }
+                else
+                {
+                    ForEachDockHeader(child, action);
+                }
+            }
+        }
+
+        private static void CollectToggleButtons(DependencyObject element, List<System.Windows.Controls.Primitives.ToggleButton> buttons)
+        {
+            var count = VisualTreeHelper.GetChildrenCount(element);
+            for (var i = 0; i < count; i++)
+            {
+                var child = VisualTreeHelper.GetChild(element, i);
+                if (child is System.Windows.Controls.Primitives.ToggleButton button)
+                {
+                    buttons.Add(button);
+                }
+                else
+                {
+                    CollectToggleButtons(child, buttons);
+                }
+            }
         }
 
         private static readonly string[] s_headerButtonTemplates =
@@ -109,6 +186,9 @@ namespace WolvenKit.Views.Shell
                 PART_DockingManager.SetCurrentValue(descriptor.DependencyProperty, template);
                 renewed++;
             }
+
+            // headers that were not rebuilt keep the close button template set on them
+            ForEachDockHeader(PART_DockingManager, UseOwnCloseButtonTemplate);
             _logger.Debug($"Themes: {renewed} panel header button templates renewed.");
         }
 
