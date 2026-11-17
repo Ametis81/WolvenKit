@@ -74,6 +74,8 @@ namespace WolvenKit.Views.Shell
                 // with the Syncfusion template
                 EventManager.RegisterClassHandler(typeof(System.Windows.Controls.Primitives.ToggleButton), LoadedEvent,
                     new RoutedEventHandler((sender, _) => G_Dock?.OnToggleButtonLoaded(sender as System.Windows.Controls.Primitives.ToggleButton)));
+                EventManager.RegisterClassHandler(typeof(System.Windows.Controls.Primitives.ButtonBase), LoadedEvent,
+                    new RoutedEventHandler((sender, _) => G_Dock?.OnTabListButtonLoaded(sender as System.Windows.Controls.Primitives.ButtonBase)));
                 EventManager.RegisterClassHandler(typeof(System.Windows.Controls.ContextMenu), System.Windows.Controls.ContextMenu.OpenedEvent,
                     new RoutedEventHandler((sender, _) => G_Dock?.OnContextMenuOpened(sender as System.Windows.Controls.ContextMenu)));
             }
@@ -140,14 +142,14 @@ namespace WolvenKit.Views.Shell
             }
         }
 
-        private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<System.Windows.Controls.Primitives.ToggleButton, object> s_watchedCloseButtons = new();
+        private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<System.Windows.Controls.Primitives.ButtonBase, object> s_watchedCloseButtons = new();
 
         private static readonly DependencyPropertyDescriptor s_templateDescriptor =
-            DependencyPropertyDescriptor.FromProperty(System.Windows.Controls.Control.TemplateProperty, typeof(System.Windows.Controls.Primitives.ToggleButton));
+            DependencyPropertyDescriptor.FromProperty(System.Windows.Controls.Control.TemplateProperty, typeof(System.Windows.Controls.Control));
 
         private static void OnCloseButtonTemplateChanged(object sender, EventArgs e)
         {
-            if (sender is System.Windows.Controls.Primitives.ToggleButton button
+            if (sender is System.Windows.Controls.Primitives.ButtonBase button
                 && G_Dock?.PART_DockingManager.TryFindResource("WolvenKitButtonsTemplate") is ControlTemplate template
                 && !ReferenceEquals(button.Template, template))
             {
@@ -156,7 +158,7 @@ namespace WolvenKit.Views.Shell
             }
         }
 
-        private static void SetOwnTemplate(System.Windows.Controls.Primitives.ToggleButton button, ControlTemplate template)
+        private static void SetOwnTemplate(System.Windows.Controls.Primitives.ButtonBase button, ControlTemplate template)
         {
             if (!ReferenceEquals(button.Template, template))
             {
@@ -183,6 +185,37 @@ namespace WolvenKit.Views.Shell
                     UseOwnCloseButtonTemplate(header);
                     return;
                 }
+            }
+        }
+
+        private bool _tabListButtonLogged;
+
+        /// <summary>
+        /// The tab list button of a TabControlExt ("More Tabs", the arrow next to the Project Explorer tabs) keeps
+        /// the hover color of the theme it was created with and fills with the accent when pressed. Give it our
+        /// button template, like the panel header buttons.
+        /// </summary>
+        private void OnTabListButtonLoaded(System.Windows.Controls.Primitives.ButtonBase button)
+        {
+            if (button is null
+                || !(button.ToolTip as string == "More Tabs" || button.Name.Contains("TabList", StringComparison.OrdinalIgnoreCase))
+                || !IsInsideTabControlExt(button)
+                || PART_DockingManager.TryFindResource("WolvenKitButtonsTemplate") is not ControlTemplate template)
+            {
+                return;
+            }
+
+            SetOwnTemplate(button, template);
+            if (!s_watchedCloseButtons.TryGetValue(button, out _))
+            {
+                s_watchedCloseButtons.Add(button, new object());
+                s_templateDescriptor?.AddValueChanged(button, OnCloseButtonTemplateChanged);
+            }
+
+            if (!_tabListButtonLogged)
+            {
+                _tabListButtonLogged = true;
+                _logger.Debug($"Themes: tab list button restyled ({button.GetType().Name} \"{button.Name}\").");
             }
         }
 
