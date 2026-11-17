@@ -103,7 +103,7 @@
       "group": "Surfaces",
       "displayName": "Border Alt",
       "kind": "Brush",
-      "description": "Borders of fields and frames in property editors, documents and dialogs"
+      "description": "Borders of fields and frames in property editors, documents and dialogs; grid lines in the LocKey Browser"
     },
     {
       "key": "WolvenKitPanelHeaderSelected",
@@ -187,7 +187,7 @@
       "group": "Grays",
       "displayName": "Gray37",
       "kind": "Brush",
-      "description": "Borders and surfaces in the type template manager and script manager, grid lines in the LocKey Browser"
+      "description": "Borders and surfaces in the type template manager and script manager"
     },
     {
       "key": "WolvenKitGray40",
