@@ -568,7 +568,7 @@
                                             Width="{DynamicResource WolvenKitIconSmall}"
                                             Height="{DynamicResource WolvenKitIconSmall}"
                                             VerticalAlignment="Center"
-                                            Foreground="{DynamicResource MahApps.Brushes.ThemeForeground}"
+                                            Foreground="{DynamicResource ContentForeground}"
                                             Spin="False"
                                             SpinAutoReverse="False" />
 
@@ -767,7 +767,7 @@
                                         Width="{DynamicResource WolvenKitIconSmall}"
                                         Height="{DynamicResource WolvenKitIconSmall}"
                                         VerticalAlignment="Center"
-                                        Foreground="{DynamicResource MahApps.Brushes.ThemeForeground}"
+                                        Foreground="{DynamicResource ContentForeground}"
                                         Spin="False"
                                         SpinAutoReverse="False" />
 
@@ -850,7 +850,7 @@
                                     Width="{DynamicResource WolvenKitIconSmall}"
                                     Height="{DynamicResource WolvenKitIconSmall}"
                                     VerticalAlignment="Center"
-                                    Foreground="{DynamicResource MahApps.Brushes.ThemeForeground}" />
+                                    Foreground="{DynamicResource ContentForeground}" />
 
                                 <TextBlock
                                     Margin="10,0,0,0"
