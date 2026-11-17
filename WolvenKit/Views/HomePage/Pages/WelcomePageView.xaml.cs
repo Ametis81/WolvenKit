@@ -116,7 +116,8 @@ namespace WolvenKit.Views.HomePage.Pages
         /// <summary>
         /// Re-applying the skin re-templates the Syncfusion CardViews, which then show no cards although the
         /// project lists are unchanged, and new collections alone don't bring them back. After a theme change
-        /// the ItemsSource bindings are set again, right away when Home is shown, otherwise when it is shown next.
+        /// the ItemsSource bindings are set again the next time the lists are filled while Home is on screen.
+        /// The switch hides the main window for a moment, so that is usually when it comes back.
         /// </summary>
         void IThemeAware.OnThemeChanged()
         {
@@ -149,7 +150,9 @@ namespace WolvenKit.Views.HomePage.Pages
         /// </summary>
         private void RefreshProjectLists()
         {
-            if (ViewModel is null)
+            // A refresh queued while the window is hidden for the theme switch would set the bindings again
+            // before the skin is done; the one queued when the window comes back does it.
+            if (ViewModel is null || !IsVisible)
             {
                 return;
             }
