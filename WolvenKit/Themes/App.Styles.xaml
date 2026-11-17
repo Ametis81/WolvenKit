@@ -466,6 +466,8 @@
         <Setter Property="TabItemSelectedBorderBrush" Value="{DynamicResource WolvenKitAccentShadow}" />
         <Setter Property="TabItemSelectedForeground" Value="{DynamicResource WolvenKitAccentForeground}" />
         <Setter Property="TabPanelBackground" Value="{DynamicResource ContentBackgroundAlt2}" />
+        <!--  the base style captures its foreground on load (stayed on the previous theme after a switch)  -->
+        <Setter Property="Foreground" Value="{DynamicResource ContentForeground}" />
         <!--
             Tab list menu (arrow next to the tabs): the Syncfusion template keeps the background of the theme it was
             created with. Ours takes the current theme.
