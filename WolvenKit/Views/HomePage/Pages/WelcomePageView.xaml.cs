@@ -2,7 +2,6 @@ using System;
 using System.Reactive.Disposables;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
 using ReactiveUI;
@@ -139,8 +138,9 @@ namespace WolvenKit.Views.HomePage.Pages
             Dispatcher.BeginInvoke(RefreshProjectLists, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
 
         /// <summary>
-        /// Fills the project lists again and gives both CardViews their ItemsSource anew, so a CardView that was
-        /// re-templated by the skin builds its cards again instead of keeping an empty panel.
+        /// Fills the project lists again. The view model hands both CardViews new collections, so a CardView that
+        /// was re-templated by the skin builds its cards again instead of keeping an empty panel. (Clearing and
+        /// setting the ItemsSource binding again instead left the cards out when Home was shown again.)
         /// </summary>
         private void RefreshProjectLists()
         {
@@ -150,23 +150,6 @@ namespace WolvenKit.Views.HomePage.Pages
             }
 
             ViewModel.RefreshProjectLists();
-
-            foreach (var cardView in new object[] { PinnedCardView, RecentCardView })
-            {
-                if (cardView is not ItemsControl itemsControl)
-                {
-                    continue;
-                }
-
-                var binding = BindingOperations.GetBindingBase(itemsControl, ItemsControl.ItemsSourceProperty);
-                if (binding is null)
-                {
-                    continue;
-                }
-
-                BindingOperations.ClearBinding(itemsControl, ItemsControl.ItemsSourceProperty);
-                BindingOperations.SetBinding(itemsControl, ItemsControl.ItemsSourceProperty, binding);
-            }
 
             Locator.Current.GetService<ILoggerService>()?.Debug(
                 $"Welcome page: project lists refilled ({ViewModel.FancyPinnedProjects.Count} pinned, {ViewModel.FancyProjects.Count} recent)");
