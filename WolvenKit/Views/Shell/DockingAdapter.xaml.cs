@@ -74,6 +74,8 @@ namespace WolvenKit.Views.Shell
                 // with the Syncfusion template
                 EventManager.RegisterClassHandler(typeof(System.Windows.Controls.Primitives.ToggleButton), LoadedEvent,
                     new RoutedEventHandler((sender, _) => G_Dock?.OnToggleButtonLoaded(sender as System.Windows.Controls.Primitives.ToggleButton)));
+                EventManager.RegisterClassHandler(typeof(System.Windows.Controls.ContextMenu), System.Windows.Controls.ContextMenu.OpenedEvent,
+                    new RoutedEventHandler((sender, _) => OnContextMenuOpened(sender as System.Windows.Controls.ContextMenu)));
             }
         }
 
@@ -182,6 +184,38 @@ namespace WolvenKit.Views.Shell
                     return;
                 }
             }
+        }
+
+        /// <summary>
+        /// The tab list menu of a TabControlExt (the arrow next to the Project Explorer tabs) is created once and
+        /// keeps the background of the theme it was created with, while its text follows the current theme. Give
+        /// it the theme's popup colors as resource references, so it follows every switch.
+        /// </summary>
+        private static void OnContextMenuOpened(System.Windows.Controls.ContextMenu menu)
+        {
+            if (menu?.PlacementTarget is not DependencyObject target || !IsInsideTabControlExt(target))
+            {
+                return;
+            }
+
+            menu.SetResourceReference(BackgroundProperty, "ContentBackgroundAlt3");
+            menu.SetResourceReference(ForegroundProperty, "ContentForeground");
+            menu.SetResourceReference(BorderBrushProperty, "BorderAlt");
+        }
+
+        private static bool IsInsideTabControlExt(DependencyObject element)
+        {
+            for (var depth = 0; depth < 12 && element is not null; depth++)
+            {
+                if (element is TabControlExt)
+                {
+                    return true;
+                }
+                element = element is Visual or System.Windows.Media.Media3D.Visual3D
+                    ? VisualTreeHelper.GetParent(element)
+                    : LogicalTreeHelper.GetParent(element);
+            }
+            return false;
         }
 
         private static void ForEachDockHeader(DependencyObject element, Action<DependencyObject> action)
