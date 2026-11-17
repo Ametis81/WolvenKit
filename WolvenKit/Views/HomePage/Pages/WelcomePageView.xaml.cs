@@ -2,6 +2,7 @@ using System;
 using System.Reactive.Disposables;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
 using ReactiveUI;
@@ -16,6 +17,7 @@ namespace WolvenKit.Views.HomePage.Pages
     {
         private bool _isStackedLayout;
         private bool _layoutModeInitialized;
+        private bool _rebindAfterThemeChange;
         private Window _hostWindow;
 
         public WelcomePageView()
@@ -113,19 +115,22 @@ namespace WolvenKit.Views.HomePage.Pages
 
         /// <summary>
         /// Re-applying the skin re-templates the Syncfusion CardViews, which then show no cards although the
-        /// project lists are unchanged. Home is shown again as a new page after a theme switch made elsewhere
-        /// (e.g. with a project open), and that page's CardViews are skinned after their cards were made.
-        /// So the lists are filled again whenever the page comes on screen, and after a theme change while it
-        /// is shown. Only a few cards: cheap.
+        /// project lists are unchanged, and new collections alone don't bring them back. After a theme change
+        /// the ItemsSource bindings are set again, right away when Home is shown, otherwise when it is shown next.
         /// </summary>
         void IThemeAware.OnThemeChanged()
         {
+            _rebindAfterThemeChange = true;
             if (IsVisible)
             {
                 RefreshProjectListsWhenIdle();
             }
         }
 
+        /// <summary>
+        /// The lists are filled again whenever the page comes on screen (e.g. Home opened from a project).
+        /// Only a few cards: cheap.
+        /// </summary>
         private void OnIsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
         {
             if (IsVisible)
@@ -138,9 +143,9 @@ namespace WolvenKit.Views.HomePage.Pages
             Dispatcher.BeginInvoke(RefreshProjectLists, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
 
         /// <summary>
-        /// Fills the project lists again. The view model hands both CardViews new collections, so a CardView that
-        /// was re-templated by the skin builds its cards again instead of keeping an empty panel. (Clearing and
-        /// setting the ItemsSource binding again instead left the cards out when Home was shown again.)
+        /// Fills the project lists again. The view model hands both CardViews new collections. The bindings are
+        /// only set again after a theme change: doing that every time left the cards out when Home was opened
+        /// from a project.
         /// </summary>
         private void RefreshProjectLists()
         {
@@ -151,8 +156,27 @@ namespace WolvenKit.Views.HomePage.Pages
 
             ViewModel.RefreshProjectLists();
 
+            var rebind = _rebindAfterThemeChange;
+            if (rebind)
+            {
+                _rebindAfterThemeChange = false;
+                RebindItemsSource(PinnedCardView, nameof(WelcomePageViewModel.FancyPinnedProjects));
+                RebindItemsSource(RecentCardView, nameof(WelcomePageViewModel.FancyProjects));
+            }
+
             Locator.Current.GetService<ILoggerService>()?.Debug(
-                $"Welcome page: project lists refilled ({ViewModel.FancyPinnedProjects.Count} pinned, {ViewModel.FancyProjects.Count} recent)");
+                $"Welcome page: project lists refilled ({ViewModel.FancyPinnedProjects.Count} pinned, {ViewModel.FancyProjects.Count} recent{(rebind ? ", bindings set again after theme change" : "")})");
+        }
+
+        private static void RebindItemsSource(ItemsControl cardView, string path)
+        {
+            if (cardView is null)
+            {
+                return;
+            }
+
+            BindingOperations.ClearBinding(cardView, ItemsControl.ItemsSourceProperty);
+            cardView.SetBinding(ItemsControl.ItemsSourceProperty, new Binding(path));
         }
 
         /// <summary>
