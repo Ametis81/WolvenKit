@@ -74,6 +74,8 @@ namespace WolvenKit.Views.Shell
                 // with the Syncfusion template
                 EventManager.RegisterClassHandler(typeof(System.Windows.Controls.Primitives.ToggleButton), LoadedEvent,
                     new RoutedEventHandler((sender, _) => G_Dock?.OnToggleButtonLoaded(sender as System.Windows.Controls.Primitives.ToggleButton)));
+                EventManager.RegisterClassHandler(typeof(System.Windows.Controls.ContextMenu), System.Windows.Controls.ContextMenu.OpenedEvent,
+                    new RoutedEventHandler((sender, _) => G_Dock?.OnContextMenuOpened(sender as System.Windows.Controls.ContextMenu)));
             }
         }
 
@@ -182,6 +184,54 @@ namespace WolvenKit.Views.Shell
                     return;
                 }
             }
+        }
+
+        private bool _tabListMenuLogged;
+
+        /// <summary>
+        /// The items of a tab list menu (arrow next to the Project Explorer tabs) get a style from Syncfusion that
+        /// keeps the colors of the theme the menu was created with. Put ours on them whenever the menu opens.
+        /// </summary>
+        private void OnContextMenuOpened(System.Windows.Controls.ContextMenu menu)
+        {
+            if (menu?.PlacementTarget is not DependencyObject target
+                || !IsInsideTabControlExt(target)
+                || Application.Current?.TryFindResource("WolvenKitTabListMenuItemStyle") is not Style style)
+            {
+                return;
+            }
+
+            var count = 0;
+            for (var i = 0; i < menu.Items.Count; i++)
+            {
+                if ((menu.Items[i] as System.Windows.Controls.MenuItem ?? menu.ItemContainerGenerator.ContainerFromIndex(i) as System.Windows.Controls.MenuItem) is { } item
+                    && !ReferenceEquals(item.Style, style))
+                {
+                    item.Style = style;
+                    count++;
+                }
+            }
+
+            if (!_tabListMenuLogged)
+            {
+                _tabListMenuLogged = true;
+                _logger.Debug($"Themes: tab list menu restyled ({count} of {menu.Items.Count} items).");
+            }
+        }
+
+        private static bool IsInsideTabControlExt(DependencyObject element)
+        {
+            for (var depth = 0; depth < 12 && element is not null; depth++)
+            {
+                if (element is TabControlExt)
+                {
+                    return true;
+                }
+                element = element is Visual or System.Windows.Media.Media3D.Visual3D
+                    ? VisualTreeHelper.GetParent(element)
+                    : LogicalTreeHelper.GetParent(element);
+            }
+            return false;
         }
 
         private static void ForEachDockHeader(DependencyObject element, Action<DependencyObject> action)
