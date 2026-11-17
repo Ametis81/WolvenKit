@@ -74,6 +74,9 @@ namespace WolvenKit.Views.Shell
                 // with the Syncfusion template
                 EventManager.RegisterClassHandler(typeof(System.Windows.Controls.Primitives.ToggleButton), LoadedEvent,
                     new RoutedEventHandler((sender, _) => G_Dock?.OnToggleButtonLoaded(sender as System.Windows.Controls.Primitives.ToggleButton)));
+                // the same tab brushes as after a switch, from the start (Syncfusion's own values otherwise)
+                EventManager.RegisterClassHandler(typeof(TabControlExt), LoadedEvent,
+                    new RoutedEventHandler((sender, _) => UseThemeTabBrushes(sender as TabControlExt)));
                 EventManager.RegisterClassHandler(typeof(System.Windows.Controls.ContextMenu), System.Windows.Controls.ContextMenu.OpenedEvent,
                     new RoutedEventHandler((sender, _) => G_Dock?.OnContextMenuOpened(sender as System.Windows.Controls.ContextMenu)));
             }
@@ -251,12 +254,7 @@ namespace WolvenKit.Views.Shell
                     continue;
                 }
 
-                // Syncfusion sets some of these itself and keeps the value of the theme WolvenKit started with
-                // (seen: TabItemSelectedBorderBrush, which also colors the hovered tab list button)
-                foreach (var (property, key) in s_tabControlBrushes)
-                {
-                    tabControl.SetResourceReference(property, key);
-                }
+                UseThemeTabBrushes(tabControl);
 
                 if (tabControl.Items.Count == 0
                     || tabControl.Items.OfType<TabItemExt>().Any(item => item.Content is not null)
@@ -281,6 +279,24 @@ namespace WolvenKit.Views.Shell
             (TabControlExt.TabItemSelectedBorderBrushProperty, "WolvenKitAccentShadow"),
             (TabControlExt.TabItemSelectedForegroundProperty, "WolvenKitAccentForeground"),
         ];
+
+        /// <summary>
+        /// Syncfusion sets some tab brushes itself and keeps the value of the theme WolvenKit started with (seen:
+        /// TabItemSelectedBorderBrush, which also colors the hovered tab list button). References to the theme keys
+        /// replace them and follow every switch.
+        /// </summary>
+        private static void UseThemeTabBrushes(TabControlExt tabControl)
+        {
+            if (tabControl is null || tabControl is DocumentTabControl || !HasWolvenKitTabStyle(tabControl))
+            {
+                return;
+            }
+
+            foreach (var (property, key) in s_tabControlBrushes)
+            {
+                tabControl.SetResourceReference(property, key);
+            }
+        }
 
         /// <summary>Uses WolvenKitTabControl (or a style based on it): the only one setting a tab list menu template.</summary>
         private static bool HasWolvenKitTabStyle(TabControlExt tabControl)
