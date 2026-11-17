@@ -70,6 +70,10 @@ namespace WolvenKit.Views.Shell
                 s_headerHandlerRegistered = true;
                 EventManager.RegisterClassHandler(typeof(DockHeaderPresenter), LoadedEvent,
                     new RoutedEventHandler((sender, _) => G_Dock?.UseOwnCloseButtonTemplate(sender as DependencyObject)));
+                // a panel that is closed and opened again keeps its header, but its close button is loaded again
+                // with the Syncfusion template
+                EventManager.RegisterClassHandler(typeof(System.Windows.Controls.Primitives.ToggleButton), LoadedEvent,
+                    new RoutedEventHandler((sender, _) => G_Dock?.OnToggleButtonLoaded(sender as System.Windows.Controls.Primitives.ToggleButton)));
             }
         }
 
@@ -122,6 +126,26 @@ namespace WolvenKit.Views.Shell
 #pragma warning disable WPF0041 // a local value on purpose: the header template's own setters must not win
                     button.SetValue(System.Windows.Controls.Control.TemplateProperty, template);
 #pragma warning restore WPF0041
+                }
+            }
+        }
+
+        private void OnToggleButtonLoaded(System.Windows.Controls.Primitives.ToggleButton button)
+        {
+            if (button is null || !button.Name.Contains("Close", StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            // only the close buttons of panel headers
+            DependencyObject parent = button;
+            for (var depth = 0; depth < 12 && parent is not null; depth++)
+            {
+                parent = VisualTreeHelper.GetParent(parent);
+                if (parent is DockHeaderPresenter header)
+                {
+                    UseOwnCloseButtonTemplate(header);
+                    return;
                 }
             }
         }
