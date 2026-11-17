@@ -237,39 +237,6 @@ namespace WolvenKit.Views.Shell
             return false;
         }
 
-        /// <summary>
-        /// Tab strips that only switch something (their tabs have no content, e.g. SOURCE / archive / raw /
-        /// RESOURCES in the Project Explorer) keep the colors of the theme they were built with in their own parts,
-        /// like the tab list button (hover background). Their template is handed to them again, which rebuilds those
-        /// parts with the current colors. Tab controls that show content are left alone: rebuilding them would
-        /// rebuild their content too.
-        /// </summary>
-        private void RenewHeaderOnlyTabControls(DependencyObject root)
-        {
-            var renewed = 0;
-            foreach (var tabControl in FindTabControls(root))
-            {
-                if (tabControl is DocumentTabControl || !HasWolvenKitTabStyle(tabControl))
-                {
-                    continue;
-                }
-
-                UseThemeTabBrushes(tabControl);
-
-                if (tabControl.Items.Count == 0
-                    || tabControl.Items.OfType<TabItemExt>().Any(item => item.Content is not null)
-                    || tabControl.Template is not { } template)
-                {
-                    continue;
-                }
-
-                tabControl.SetCurrentValue(System.Windows.Controls.Control.TemplateProperty, null);
-                tabControl.SetCurrentValue(System.Windows.Controls.Control.TemplateProperty, template);
-                renewed++;
-            }
-            _logger.Debug($"Themes: {renewed} tab strip(s) rebuilt.");
-        }
-
         private static readonly (DependencyProperty Property, string Key)[] s_tabControlBrushes =
         [
             (TabControlExt.TabItemHoverBackgroundProperty, "WolvenKitAccentShadow"),
@@ -309,27 +276,6 @@ namespace WolvenKit.Views.Shell
                 }
             }
             return false;
-        }
-
-        private static List<TabControlExt> FindTabControls(DependencyObject root)
-        {
-            var found = new List<TabControlExt>();
-            Collect(root);
-            return found;
-
-            void Collect(DependencyObject element)
-            {
-                var count = VisualTreeHelper.GetChildrenCount(element);
-                for (var i = 0; i < count; i++)
-                {
-                    var child = VisualTreeHelper.GetChild(element, i);
-                    if (child is TabControlExt tabControl)
-                    {
-                        found.Add(tabControl);
-                    }
-                    Collect(child);
-                }
-            }
         }
 
         private static void ForEachDockHeader(DependencyObject element, Action<DependencyObject> action)
@@ -395,8 +341,6 @@ namespace WolvenKit.Views.Shell
 
             // headers that were not rebuilt keep the close button template set on them
             ForEachDockHeader(PART_DockingManager, UseOwnCloseButtonTemplate);
-
-            RenewHeaderOnlyTabControls(PART_DockingManager);
             _logger.Debug($"Themes: {renewed} panel header button templates renewed.");
         }
 
