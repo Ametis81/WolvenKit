@@ -77,16 +77,10 @@ namespace WolvenKit.Helpers
             {
                 try
                 {
-                    var merged = grid.Resources.MergedDictionaries;
-                    for (var i = merged.Count - 1; i >= 0; i--)
-                    {
-                        // the copy merged by an earlier switch
-                        if (merged[i].Source?.OriginalString == PropertyGridStyles)
-                        {
-                            merged.RemoveAt(i);
-                        }
-                    }
-                    merged.Add(fresh);
+                    // The copy of an earlier switch stays: removing it throws inside WPF (NullReferenceException),
+                    // it shares the application's Brushes.xaml with the application resources. The last merged
+                    // dictionary wins the lookup, so the new copy is the one used. Themes are switched rarely.
+                    grid.Resources.MergedDictionaries.Add(fresh);
 
                     if (fresh[typeof(PropertyGrid)] is Style style)
                     {
