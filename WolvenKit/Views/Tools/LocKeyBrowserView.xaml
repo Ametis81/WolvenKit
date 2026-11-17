@@ -118,7 +118,7 @@
                         Grid.Column="1"
                         Padding="{DynamicResource WolvenKitMarginSmallHorizontal}"
                         VerticalAlignment="Center"
-                        Foreground="Gold"
+                        Foreground="{DynamicResource WolvenKitYellow}"
                         FontSize="{DynamicResource WolvenKitFontBody}"
                         Text="{Binding SelectedPrimaryKey,
                                        Mode=OneWay}" />
