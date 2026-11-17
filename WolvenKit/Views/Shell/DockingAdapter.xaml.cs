@@ -197,9 +197,10 @@ namespace WolvenKit.Views.Shell
         /// </summary>
         private void OnTabListButtonLoaded(System.Windows.Controls.Primitives.ButtonBase button)
         {
+            // buttons of the tab strip (tab list arrow, scroll arrows), not the tabs nor their content
             if (button is null
-                || !(button.ToolTip as string == "More Tabs" || button.Name.Contains("TabList", StringComparison.OrdinalIgnoreCase))
-                || !IsInsideTabControlExt(button)
+                || FindTabStripOwner(button) is not { } tabControl
+                || !UsesWolvenKitTabStyle(tabControl)
                 || PART_DockingManager.TryFindResource("WolvenKitButtonsTemplate") is not ControlTemplate template)
             {
                 return;
@@ -217,6 +218,40 @@ namespace WolvenKit.Views.Shell
                 _tabListButtonLogged = true;
                 _logger.Debug($"Themes: tab list button restyled ({button.GetType().Name} \"{button.Name}\").");
             }
+        }
+
+        /// <summary>The TabControlExt whose own template holds <paramref name="button"/>, or null (also for buttons in a tab).</summary>
+        private static TabControlExt FindTabStripOwner(DependencyObject button)
+        {
+            var element = VisualTreeHelper.GetParent(button);
+            for (var depth = 0; depth < 15 && element is not null; depth++)
+            {
+                switch (element)
+                {
+                    case TabItemExt:
+                        return null;
+                    case TabControlExt tabControl:
+                        return tabControl;
+                }
+                element = VisualTreeHelper.GetParent(element);
+            }
+            return null;
+        }
+
+        private static bool UsesWolvenKitTabStyle(TabControlExt tabControl)
+        {
+            if (Application.Current?.TryFindResource("WolvenKitTabControl") is not Style ours)
+            {
+                return false;
+            }
+            for (var style = tabControl.Style; style is not null; style = style.BasedOn)
+            {
+                if (ReferenceEquals(style, ours))
+                {
+                    return true;
+                }
+            }
+            return false;
         }
 
         private bool _tabListMenuLogged;
