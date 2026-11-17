@@ -246,8 +246,19 @@ namespace WolvenKit.Views.Shell
             var renewed = 0;
             foreach (var tabControl in FindTabControls(root))
             {
-                if (tabControl is DocumentTabControl
-                    || tabControl.Items.Count == 0
+                if (tabControl is DocumentTabControl || !HasWolvenKitTabStyle(tabControl))
+                {
+                    continue;
+                }
+
+                // Syncfusion sets some of these itself and keeps the value of the theme WolvenKit started with
+                // (seen: TabItemSelectedBorderBrush, which also colors the hovered tab list button)
+                foreach (var (property, key) in s_tabControlBrushes)
+                {
+                    tabControl.SetResourceReference(property, key);
+                }
+
+                if (tabControl.Items.Count == 0
                     || tabControl.Items.OfType<TabItemExt>().Any(item => item.Content is not null)
                     || tabControl.Template is not { } template)
                 {
@@ -259,6 +270,29 @@ namespace WolvenKit.Views.Shell
                 renewed++;
             }
             _logger.Debug($"Themes: {renewed} tab strip(s) rebuilt.");
+        }
+
+        private static readonly (DependencyProperty Property, string Key)[] s_tabControlBrushes =
+        [
+            (TabControlExt.TabItemHoverBackgroundProperty, "WolvenKitAccentShadow"),
+            (TabControlExt.TabItemHoverBorderBrushProperty, "WolvenKitAccentShadow"),
+            (TabControlExt.TabItemHoverForegroundProperty, "WolvenKitAccentShadowForeground"),
+            (TabControlExt.TabItemSelectedBackgroundProperty, "WolvenKitAccent"),
+            (TabControlExt.TabItemSelectedBorderBrushProperty, "WolvenKitAccentShadow"),
+            (TabControlExt.TabItemSelectedForegroundProperty, "WolvenKitAccentForeground"),
+        ];
+
+        /// <summary>Uses WolvenKitTabControl (or a style based on it): the only one setting a tab list menu template.</summary>
+        private static bool HasWolvenKitTabStyle(TabControlExt tabControl)
+        {
+            for (var style = tabControl.Style; style is not null; style = style.BasedOn)
+            {
+                if (style.Setters.OfType<Setter>().Any(s => s.Property == TabControlExt.TabListContextMenuTemplateProperty))
+                {
+                    return true;
+                }
+            }
+            return false;
         }
 
         private static List<TabControlExt> FindTabControls(DependencyObject root)
