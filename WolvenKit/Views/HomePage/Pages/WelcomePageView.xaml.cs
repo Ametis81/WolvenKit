@@ -2,7 +2,6 @@ using System;
 using System.Reactive.Disposables;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
 using ReactiveUI;
@@ -115,9 +114,10 @@ namespace WolvenKit.Views.HomePage.Pages
         private void OnHostWindowSizeChanged(object sender, SizeChangedEventArgs e) => UpdateLayoutMode();
 
         /// <summary>
-        /// Re-applying the skin re-templates the Syncfusion CardViews, which then show no cards although the
-        /// project lists are unchanged. From then on, handing them new collections is not enough either: the
-        /// ItemsSource bindings have to be cleared and set again on every refill.
+        /// Re-applying the skin re-templates the Syncfusion CardViews of this page, and afterwards they show no
+        /// cards, whatever ItemsSource they get. A new page built after the switch is fine (as when the theme was
+        /// changed with a project open), so once Home is on screen again the page puts a new instance of itself
+        /// in its place. The lists live in the (shared) view model, nothing is lost.
         /// </summary>
         void IThemeAware.OnThemeChanged()
         {
@@ -155,38 +155,31 @@ namespace WolvenKit.Views.HomePage.Pages
         }
 
         /// <summary>
-        /// Fills the project lists again with new collections. Once the page was re-skinned, the ItemsSource
-        /// bindings are cleared first and set again afterwards (before that, clearing them left the cards out
-        /// when Home was opened from a project).
+        /// Fills the project lists again; the view model hands both CardViews new collections. After a theme
+        /// switch, replaces the page instead (see <see cref="IThemeAware.OnThemeChanged"/>).
         /// </summary>
         private void RefreshProjectLists()
         {
             _refreshQueued = false;
 
-            // A refill while the window is hidden for the theme switch comes too early; the window coming back
-            // asks for another one.
+            // While the window is hidden for the theme switch it is too early; the window coming back asks again.
             if (ViewModel is null || !IsVisible)
             {
                 return;
             }
 
-            var rebind = _reskinned;
-            if (rebind)
+            if (_reskinned && Parent is ContentControl host)
             {
-                BindingOperations.ClearBinding(PinnedCardView, ItemsControl.ItemsSourceProperty);
-                BindingOperations.ClearBinding(RecentCardView, ItemsControl.ItemsSourceProperty);
+                _reskinned = false;
+                host.SetCurrentValue(ContentControl.ContentProperty, new WelcomePageView());
+                Locator.Current.GetService<ILoggerService>()?.Debug("Welcome page: rebuilt after a theme switch.");
+                return;
             }
 
             ViewModel.RefreshProjectLists();
 
-            if (rebind)
-            {
-                PinnedCardView.SetBinding(ItemsControl.ItemsSourceProperty, new Binding(nameof(WelcomePageViewModel.FancyPinnedProjects)));
-                RecentCardView.SetBinding(ItemsControl.ItemsSourceProperty, new Binding(nameof(WelcomePageViewModel.FancyProjects)));
-            }
-
             Locator.Current.GetService<ILoggerService>()?.Debug(
-                $"Welcome page: project lists refilled ({ViewModel.FancyPinnedProjects.Count} pinned, {ViewModel.FancyProjects.Count} recent{(rebind ? ", bindings set again (re-skinned)" : "")})");
+                $"Welcome page: project lists refilled ({ViewModel.FancyPinnedProjects.Count} pinned, {ViewModel.FancyProjects.Count} recent)");
         }
 
         /// <summary>

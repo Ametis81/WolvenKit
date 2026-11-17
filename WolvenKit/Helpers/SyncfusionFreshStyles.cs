@@ -4,6 +4,8 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Media;
 using Syncfusion.Windows.PropertyGrid;
+using Splat;
+using WolvenKit.App.Services.Themes;
 using WolvenKit.Core.Interfaces;
 
 namespace WolvenKit.Helpers
@@ -68,6 +70,9 @@ namespace WolvenKit.Helpers
                 return;
             }
 
+            // the grid styles define colors of their own besides Brushes.xaml; give them the theme's
+            var patched = Locator.Current.GetService<IThemeService>()?.Patch(fresh) ?? 0;
+
             foreach (var grid in grids)
             {
                 try
@@ -94,7 +99,7 @@ namespace WolvenKit.Helpers
                 }
             }
 
-            logger?.Debug($"Themes: {grids.Count} property grid(s) restyled.");
+            logger?.Debug($"Themes: {grids.Count} property grid(s) restyled ({patched} colors of their styles patched).");
         }
 
         private static void Collect(DependencyObject element, List<PropertyGrid> grids)
