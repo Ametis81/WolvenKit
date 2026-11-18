@@ -37,9 +37,11 @@ public partial class RDTMeshViewModel
     private const double DecalLeftoverTolerance = 0.03;    // 3 cm
     private const double DecalDropShare = 0.01;            // stray triangles not drawn
     private const double DecalUnderSlack = 0.0005;         // 0.5 mm below a surface still counts as on it
-    private const double DecalUnderPenalty = 2;            // a surface the decal lies under: after any other
 
     private readonly ConcurrentDictionary<string, byte> _decalBakesRunning = new();
+
+    /// <summary>Surface material -> composite key of its decals in the last ApplyDecalsToSurfaces.</summary>
+    private readonly Dictionary<string, string> _decalCurrentKeys = new();
 
     private static bool s_blendDecals = true;
 
@@ -127,6 +129,7 @@ public partial class RDTMeshViewModel
         try
         {
             RestoreDecals(app);
+            _decalCurrentKeys.Clear();
             // Sectors: a surface material is shared by many placed meshes, so a decal baked into
             // its texture would show on every copy; and matching every decal against every mesh
             // of a sector takes long on the UI thread. Decals stay as they are there.
@@ -148,6 +151,7 @@ public partial class RDTMeshViewModel
                 var decals = group.ToList();
                 var overlay = IsOverlaySurface(decals[0].Surface);
                 var key = DecalCompositeKey(surfaceName, decals) + (overlay ? "|ov" : "");
+                _decalCurrentKeys[surfaceName] = key;
                 var (cd, cn, crm) = DecalCompositePaths(surfaceName, key, overlay);
                 var op = OverlayPaths(cd);
 
@@ -211,7 +215,10 @@ public partial class RDTMeshViewModel
                     {
                         context.Post(_ =>
                         {
+                            // A bake started for an older assignment (materials still loading, other
+                            // surfaces then took decal triangles) would hide what is now drawn elsewhere.
                             if (!_disposed && BlendDecalsIntoSurfaces && SelectedAppearance == app &&
+                                _decalCurrentKeys.TryGetValue(surfaceName, out var currentKey) && currentKey == key &&
                                 (overlay ? File.Exists(op.Done) : File.Exists(cd)))
                             {
                                 Use();
@@ -1273,13 +1280,14 @@ public partial class RDTMeshViewModel
             var distance = (pa.Value.Distance + pb.Value.Distance + pc.Value.Distance) / 3;
 
             // A decal lies on top of its surface. One that lies under this surface (a tattoo
-            // under a tight shirt) belongs to the skin below, so this surface scores worse.
+            // under a tight shirt) belongs to the skin below and is never baked into this one:
+            // while the skin is not baked yet, the triangle stays in the decal, which draws it.
             var underCorners = (IsUnderSurface(surface, pa.Value.Triangle, pa.Value.U, pa.Value.V, pa.Value.W, A) ? 1 : 0) +
                         (IsUnderSurface(surface, pb.Value.Triangle, pb.Value.U, pb.Value.V, pb.Value.W, B) ? 1 : 0) +
                         (IsUnderSurface(surface, pc.Value.Triangle, pc.Value.U, pc.Value.V, pc.Value.W, C) ? 1 : 0);
             if (underCorners >= 2)
             {
-                distance += DecalUnderPenalty;
+                continue;
             }
 
             // A decal triangle reaching over a bend or a seam of the surface (decals that follow
