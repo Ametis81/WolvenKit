@@ -36,6 +36,8 @@ public partial class RDTMeshViewModel
     private const double DecalLeftoverShare = 0.05;        // left-over edge pieces searched wider
     private const double DecalLeftoverTolerance = 0.03;    // 3 cm
     private const double DecalDropShare = 0.01;            // stray triangles not drawn
+    private const double DecalUnderSlack = 0.0005;         // 0.5 mm below a surface still counts as on it
+    private const double DecalUnderPenalty = 2;            // a surface the decal lies under: after any other
 
     private readonly ConcurrentDictionary<string, byte> _decalBakesRunning = new();
 
@@ -1187,6 +1189,27 @@ public partial class RDTMeshViewModel
         return best;
     }
 
+    /// <summary>
+    /// Whether p lies below the surface at the given point (against its normal, past a small
+    /// slack): the vertex normals when the mesh has them, else the triangle's own.
+    /// </summary>
+    private static bool IsUnderSurface(SurfaceGeometry s, int t, double u, double v, double w, Point3D p)
+    {
+        int ia = s.Indices[t * 3], ib = s.Indices[t * 3 + 1], ic = s.Indices[t * 3 + 2];
+        Point3D a = s.Positions[ia], b = s.Positions[ib], c = s.Positions[ic];
+        var q = new Point3D(a.X * u + b.X * v + c.X * w, a.Y * u + b.Y * v + c.Y * w, a.Z * u + b.Z * v + c.Z * w);
+        var n = s.Normals != null
+            ? (s.Normals[ia] * u) + (s.Normals[ib] * v) + (s.Normals[ic] * w)
+            : Vector3D.CrossProduct(b - a, c - a);
+        if (n.LengthSquared < 1e-18)
+        {
+            return false;
+        }
+
+        n.Normalize();
+        return Vector3D.DotProduct(p - q, n) < -DecalUnderSlack;
+    }
+
     private static (double U, double V) SurfaceUvAt(SurfaceGeometry s, int t, double u, double v, double w)
     {
         int a = s.Indices[t * 3], b = s.Indices[t * 3 + 1], c = s.Indices[t * 3 + 2];
@@ -1248,6 +1271,16 @@ public partial class RDTMeshViewModel
             var uc = SurfaceUvAt(surface, pc.Value.Triangle, pc.Value.U, pc.Value.V, pc.Value.W);
             double[] uv = { ua.U, ua.V, ub.U, ub.V, uc.U, uc.V };
             var distance = (pa.Value.Distance + pb.Value.Distance + pc.Value.Distance) / 3;
+
+            // A decal lies on top of its surface. One that lies under this surface (a tattoo
+            // under a tight shirt) belongs to the skin below, so this surface scores worse.
+            var under = (IsUnderSurface(surface, pa.Value.Triangle, pa.Value.U, pa.Value.V, pa.Value.W, A) ? 1 : 0) +
+                        (IsUnderSurface(surface, pb.Value.Triangle, pb.Value.U, pb.Value.V, pb.Value.W, B) ? 1 : 0) +
+                        (IsUnderSurface(surface, pc.Value.Triangle, pc.Value.U, pc.Value.V, pc.Value.W, C) ? 1 : 0);
+            if (under >= 2)
+            {
+                distance += DecalUnderPenalty;
+            }
 
             // A decal triangle reaching over a bend or a seam of the surface (decals that follow
             // a gun's shape have long ones): its corners alone do not place its inside. Then it
