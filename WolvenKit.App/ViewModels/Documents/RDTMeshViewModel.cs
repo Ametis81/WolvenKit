@@ -11033,6 +11033,12 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
             // Face overlays are plain mesh_decal: only the name separates them from clothing decals.
             if (ContainsAny(name, "heb_", "hb_", "brow"))
                 return MaterialKind.Eyebrow;
+            // Face cyberware from the character creator (implants on the "freckles" and lips meshes,
+            // .mi under ...\makeup\freckles\cyberware\) is metal with its own roughness / metalness
+            // and normal: a decal, not a colour-only makeup overlay.
+            if (name.Contains("cyberware", StringComparison.OrdinalIgnoreCase) ||
+                (directBase != null && directBase.Replace('/', '\\').Contains("\\cyberware\\", StringComparison.OrdinalIgnoreCase)))
+                return MaterialKind.Decal;
             // Tattoo decals stay plain decals: the makeup overlay bake (DiffuseTexture tint) made
             // them, and the skin under them, look washed out.
             if (ContainsAny(name, "hx_", "freckle", "frecle", "makeup", "lipstick", "_lips"))
