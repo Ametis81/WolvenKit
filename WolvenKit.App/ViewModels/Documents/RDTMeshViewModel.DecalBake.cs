@@ -1274,10 +1274,10 @@ public partial class RDTMeshViewModel
 
             // A decal lies on top of its surface. One that lies under this surface (a tattoo
             // under a tight shirt) belongs to the skin below, so this surface scores worse.
-            var under = (IsUnderSurface(surface, pa.Value.Triangle, pa.Value.U, pa.Value.V, pa.Value.W, A) ? 1 : 0) +
+            var underCorners = (IsUnderSurface(surface, pa.Value.Triangle, pa.Value.U, pa.Value.V, pa.Value.W, A) ? 1 : 0) +
                         (IsUnderSurface(surface, pb.Value.Triangle, pb.Value.U, pb.Value.V, pb.Value.W, B) ? 1 : 0) +
                         (IsUnderSurface(surface, pc.Value.Triangle, pc.Value.U, pc.Value.V, pc.Value.W, C) ? 1 : 0);
-            if (under >= 2)
+            if (underCorners >= 2)
             {
                 distance += DecalUnderPenalty;
             }
