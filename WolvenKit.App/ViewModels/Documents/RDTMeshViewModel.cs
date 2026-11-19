@@ -1234,6 +1234,7 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
         var appIndex = ResolveAppearanceIndex(apps, meshApp);
 
         var appMaterials = new List<Material>();
+        var chunkMaterialNames = new List<string>();
 
         if (appIndex >= 0 && appIndex < mesh.Appearances.Count)
         {
@@ -1242,6 +1243,7 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
             {
                 foreach (var m in mmApp.ChunkMaterials)
                 {
+                    chunkMaterialNames.Add(m.ToString() ?? string.Empty);
                     var name = GetUniqueMaterialName(m.ToString().NotNull(), mesh, meshPath);
                     if (materials.TryGetValue(name, out var material))
                     {
@@ -1276,7 +1278,7 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
             AppearanceName = meshApp,
             Matrix = matrix,
             Materials = appMaterials,
-            IsEnabled = enabled,
+            IsEnabled = enabled && !IsProxyMesh(depotPath, chunkMaterialNames),
             BindName = bindName,
             SlotName = slotName,
             ChunkMask = chunkMask,
@@ -1286,6 +1288,26 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
         };
 
         appModels.Add(modelName, model);
+    }
+
+    private static readonly HashSet<string> s_proxyMaterialNames = new(StringComparer.OrdinalIgnoreCase) { "Body", "Hair", "Glass", "Lights" };
+
+    /// <summary>
+    /// A simplified stand-in of the whole character or vehicle (distance / appearance proxy):
+    /// a "proxy" mesh file, or a mesh whose materials are only the proxy's generic Body, Hair,
+    /// Glass, Lights. Hidden like AppearanceProxyMesh: drawn, it doubles the real meshes.
+    /// </summary>
+    private static bool IsProxyMesh(ResourcePath depotPath, List<string> chunkMaterialNames)
+    {
+        var file = Path.GetFileNameWithoutExtension(depotPath.GetResolvedText() ?? string.Empty);
+        if (file.Contains("proxy", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return chunkMaterialNames.Count > 0 &&
+               chunkMaterialNames.Contains("Body", StringComparer.OrdinalIgnoreCase) &&
+               chunkMaterialNames.All(s_proxyMaterialNames.Contains);
     }
 
     public void GetResolvedMatrix(IBindable bindable, ref SeparateMatrix matrix, Dictionary<string, LoadableModel> models)
