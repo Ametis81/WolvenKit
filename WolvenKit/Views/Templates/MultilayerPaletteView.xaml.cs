@@ -1,10 +1,14 @@
+using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Globalization;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Threading;
 using Splat;
 using WolvenKit.App.Helpers;
 using WolvenKit.App.ViewModels.Shell;
@@ -21,11 +25,17 @@ namespace WolvenKit.Views.Editors
     {
         private const double SwatchSize = 14;
 
+        /// <summary>Swatches of the grid: fewer per line, so larger.</summary>
+        private const double GridSwatchSize = 22;
+
         /// <summary>Space between the blocks of two groups.</summary>
         private const double GroupGap = 8;
 
         /// <summary>Open or closed for all layers and files of the session.</summary>
         private static bool s_isExpanded = true;
+
+        /// <summary>Groups as columns (grid) or as rows, for all layers and files of the session.</summary>
+        private static bool s_gridMode;
 
         private ChunkViewModel _subscribed;
 
@@ -36,6 +46,10 @@ namespace WolvenKit.Views.Editors
             PaletteExpander.SetCurrentValue(Expander.IsExpandedProperty, s_isExpanded);
             PaletteExpander.Expanded += (_, _) => s_isExpanded = true;
             PaletteExpander.Collapsed += (_, _) => s_isExpanded = false;
+
+            (s_gridMode ? GridModeButton : RowsModeButton).SetCurrentValue(ToggleButton.IsCheckedProperty, true);
+            GridModeButton.Checked += (_, _) => SetMode(true);
+            RowsModeButton.Checked += (_, _) => SetMode(false);
 
             DataContextChanged += (_, _) => Subscribe();
             Loaded += (_, _) => Subscribe();
@@ -74,9 +88,21 @@ namespace WolvenKit.Views.Editors
             }
         }
 
+        private void SetMode(bool grid)
+        {
+            if (s_gridMode != grid)
+            {
+                s_gridMode = grid;
+                Rebuild();
+            }
+        }
+
         private void Rebuild()
         {
             RowsPanel.Children.Clear();
+            ColumnsPanel.Children.Clear();
+            GridScroll.SetCurrentValue(VisibilityProperty, s_gridMode ? Visibility.Visible : Visibility.Collapsed);
+            RowsScroll.SetCurrentValue(VisibilityProperty, s_gridMode ? Visibility.Collapsed : Visibility.Visible);
 
             if (Cvm is not { ParentData: Multilayer_Layer layer } cvm ||
                 layer.Material.DepotPath.GetResolvedText() is not { Length: > 0 } template ||
@@ -108,6 +134,12 @@ namespace WolvenKit.Views.Editors
             PaletteExpander.SetCurrentValue(HeaderedContentControl.HeaderProperty,
                 $"Palette: {colors.Count} colours in {rows.Count} groups");
 
+            if (s_gridMode)
+            {
+                BuildGrid(rows, current);
+                return;
+            }
+
             // same width for every group, so the blocks line up in columns
             var groupWidth = rows.Max(row => row.Count) * (SwatchSize + 2);
             foreach (var row in rows)
@@ -127,15 +159,59 @@ namespace WolvenKit.Views.Editors
             }
         }
 
-        private Border CreateSwatch(MultilayerPaletteColor color, bool isCurrent)
+        /// <summary>
+        /// The groups side by side as columns, base colour on top and the variants below it; a group shorter than
+        /// the others (a custom template) simply ends earlier. Scrolled so the current colour is in view.
+        /// </summary>
+        private void BuildGrid(IReadOnlyList<IReadOnlyList<MultilayerPaletteColor>> groups, string current)
+        {
+            var currentColumn = -1;
+            for (var i = 0; i < groups.Count; i++)
+            {
+                var column = new StackPanel
+                {
+                    Orientation = Orientation.Vertical,
+                    Margin = new Thickness(0, 0, 2, 0),
+                };
+                foreach (var color in groups[i])
+                {
+                    var isCurrent = color.Name == current;
+                    if (isCurrent)
+                    {
+                        currentColumn = i;
+                    }
+
+                    column.Children.Add(CreateSwatch(color, isCurrent, GridSwatchSize));
+                }
+
+                ColumnsPanel.Children.Add(column);
+            }
+
+            var offset = currentColumn < 0 ? 0 : currentColumn * (GridSwatchSize + 4);
+            Dispatcher.InvokeAsync(() =>
+                GridScroll.ScrollToHorizontalOffset(Math.Max(0, offset - (GridScroll.ViewportWidth / 2))),
+                DispatcherPriority.Loaded);
+        }
+
+        // Shift + wheel scrolls the grid sideways; the plain wheel keeps scrolling the panel around it
+        private void GridScroll_OnPreviewMouseWheel(object sender, MouseWheelEventArgs e)
+        {
+            if (Keyboard.Modifiers.HasFlag(ModifierKeys.Shift))
+            {
+                GridScroll.ScrollToHorizontalOffset(GridScroll.HorizontalOffset - e.Delta);
+                e.Handled = true;
+            }
+        }
+
+        private Border CreateSwatch(MultilayerPaletteColor color, bool isCurrent, double size = SwatchSize)
         {
             var brush = new SolidColorBrush(MultilayerPalette.ToColor(color));
             brush.Freeze();
 
             var swatch = new Border
             {
-                Width = SwatchSize,
-                Height = SwatchSize,
+                Width = size,
+                Height = size,
                 Margin = new Thickness(1),
                 Background = brush,
                 BorderThickness = new Thickness(isCurrent ? 2 : 1),

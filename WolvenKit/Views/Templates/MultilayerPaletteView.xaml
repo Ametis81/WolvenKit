@@ -14,16 +14,41 @@
             Margin="{DynamicResource WolvenKitMarginTiny}"
             Header="Palette"
             IsExpanded="True">
-            <ScrollViewer
-                MaxHeight="320"
-                HorizontalScrollBarVisibility="Disabled"
-                VerticalScrollBarVisibility="Auto">
-                <!--
-                    one block per group of the template's colours, the group's base colour first; the blocks are
-                    as wide as the largest group and flow left to right, then down, in palette order
-                -->
-                <WrapPanel x:Name="RowsPanel" Orientation="Horizontal" />
-            </ScrollViewer>
+            <StackPanel>
+                <!-- the same palette two ways; the choice holds for all layers and files of the session -->
+                <StackPanel Margin="0,0,0,4" Orientation="Horizontal">
+                    <RadioButton
+                        x:Name="GridModeButton"
+                        Content="Grid"
+                        ToolTip="Each colour group is a column, its variants below the base colour, scrolling sideways (like CDPR's material browser)" />
+                    <RadioButton
+                        x:Name="RowsModeButton"
+                        Margin="12,0,0,0"
+                        Content="Rows"
+                        ToolTip="Each colour group is a row, the rows wrapping down (like the Blender add-on)" />
+                </StackPanel>
+
+                <!-- one column per group, base colour on top; Shift + wheel scrolls sideways -->
+                <ScrollViewer
+                    x:Name="GridScroll"
+                    HorizontalScrollBarVisibility="Auto"
+                    VerticalScrollBarVisibility="Disabled"
+                    PreviewMouseWheel="GridScroll_OnPreviewMouseWheel">
+                    <StackPanel x:Name="ColumnsPanel" Orientation="Horizontal" />
+                </ScrollViewer>
+
+                <ScrollViewer
+                    x:Name="RowsScroll"
+                    MaxHeight="320"
+                    HorizontalScrollBarVisibility="Disabled"
+                    VerticalScrollBarVisibility="Auto">
+                    <!--
+                        one block per group of the template's colours, the group's base colour first; the blocks are
+                        as wide as the largest group and flow left to right, then down, in palette order
+                    -->
+                    <WrapPanel x:Name="RowsPanel" Orientation="Horizontal" />
+                </ScrollViewer>
+            </StackPanel>
         </Expander>
 
         <!-- the layer's template path leads nowhere (mistyped, or the file was renamed or moved) -->
