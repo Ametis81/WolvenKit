@@ -59,6 +59,25 @@ public class MultilayerPaletteTests
     }
 
     [Fact]
+    public void GroupIntoGrid_ColumnsInPlainHueOrder_GreysFirst()
+    {
+        var colors = new[]
+        {
+            C("blue_null", 0.2f, 0.4f, 0.9f),
+            C("red_null", 0.9f, 0.1f, 0.1f),
+            C("dark_null", 0.2f, 0.2f, 0.2f),
+            C("green_null", 0.1f, 0.8f, 0.2f),
+            C("light_null", 0.8f, 0.8f, 0.8f),
+            C("darkred_null", 0.5f, 0.05f, 0.05f),
+        };
+
+        var grid = MultilayerPalette.GroupIntoGrid(colors);
+
+        Assert.Equal(new[] { "light", "dark", "red", "darkred", "green", "blue" },
+            grid.Columns.Select(c => c.Cells[0]!.Name.Split('_')[0]));
+    }
+
+    [Fact]
     public void GroupIntoGrid_UnsharedSuffixes_KeepEachGroupsOrder()
     {
         var colors = new[]

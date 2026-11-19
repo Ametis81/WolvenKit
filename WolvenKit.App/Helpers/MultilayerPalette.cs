@@ -64,7 +64,8 @@ public static class MultilayerPalette
     }
 
     /// <summary>
-    /// The palette as a strip of columns, like CDPR's material browser: the groups in the add-on's order as columns,
+    /// The palette as a strip of columns, like CDPR's material browser: the groups as columns in plain hue order
+    /// (greys first, light to dark, then by the hue of the base colour, light before dark within the same hue),
     /// and one row per variant suffix ("00cf56_69039f" → "69039f"), so a row is the same saturation / value step
     /// for every hue. The base colour ("_null") is the top row, the other suffixes follow from the most saturated
     /// on average to the greyest. Templates whose suffixes aren't shared between groups (as many distinct
@@ -72,7 +73,14 @@ public static class MultilayerPalette
     /// </summary>
     public static MultilayerPaletteGrid GroupIntoGrid(IEnumerable<MultilayerPaletteColor> colors)
     {
-        var groups = GroupIntoRows(colors);
+        var groups = GroupIntoRows(colors)
+            .Select((group, index) => (Group: group, Index: index, Key: HueSortKey(group)))
+            .OrderBy(g => g.Key.Kind)
+            .ThenBy(g => g.Key.Hue)
+            .ThenByDescending(g => g.Key.Value)
+            .ThenBy(g => g.Index)
+            .Select(g => g.Group)
+            .ToList();
         if (groups.Count == 0)
         {
             return new MultilayerPaletteGrid([], []);
@@ -114,6 +122,18 @@ public static class MultilayerPalette
             .ToList();
 
         return new MultilayerPaletteGrid(suffixes, columns);
+    }
+
+    /// <summary>Greys (0), colours (1), groups without a base colour (2, in palette order); then hue and value.</summary>
+    private static (int Kind, double Hue, double Value) HueSortKey(IReadOnlyList<MultilayerPaletteColor> group)
+    {
+        if (group.FirstOrDefault(c => Suffix(c.Name) == "null") is not { } baseColor)
+        {
+            return (2, 0, 0);
+        }
+
+        var (h, s, v) = RgbToHsv(baseColor.R, baseColor.G, baseColor.B);
+        return s < 0.01 ? (0, 0, v) : (1, h, v);
     }
 
     private static string Suffix(string name) => name.Split('_', 2) is { Length: 2 } parts ? parts[1] : "";
