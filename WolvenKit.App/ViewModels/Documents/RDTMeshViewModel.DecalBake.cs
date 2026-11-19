@@ -145,6 +145,14 @@ public partial class RDTMeshViewModel
                 return;
             }
 
+            var logger = Parent?.GetLoggerService();
+            foreach (var layer in layers)
+            {
+                logger?.Debug($"[Decals] '{layer.DecalName}' -> '{layer.Surface.MaterialName}' " +
+                              $"({layer.SurfaceModel.Name}, {layer.Surface.Name}, LOD {layer.Surface.LOD}): " +
+                              $"{layer.Triangles.Count} / {layer.DecalGeometry.Indices.Length / 3} triangles");
+            }
+
             foreach (var group in layers.GroupBy(l => l.Surface.MaterialName!))
             {
                 var surfaceName = group.Key;
@@ -244,7 +252,9 @@ public partial class RDTMeshViewModel
 
         // Only surfaces that are drawn: the body of the hidden AppearanceProxyMesh (and shadow /
         // cutout meshes) lies right at the skin and took tattoos, which then vanished from view.
-        var surfaces = all.Where(x => x.Model.IsEnabled && IsDecalSurface(x.Mesh)).ToList();
+        // Chunks the appearance masks out (a body part under clothes, the other variant of a
+        // chunk pair) are not drawn at any LOD either.
+        var surfaces = all.Where(x => x.Model.IsEnabled && x.Mesh.EnabledWithMask && IsDecalSurface(x.Mesh)).ToList();
         var result = new List<DecalLayer>();
         if (surfaces.Count == 0)
         {
