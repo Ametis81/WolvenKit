@@ -8,6 +8,12 @@ namespace WolvenKit.App.Helpers;
 /// <summary>One colorScale override of a multilayer template: its name and v (0..1 per channel, as stored).</summary>
 public sealed record MultilayerPaletteColor(string Name, float R, float G, float B);
 
+/// <summary>A colour group as a column of the grid: its hue step and one cell per row (null where it has no colour).</summary>
+public sealed record MultilayerPaletteColumn(int HueStep, IReadOnlyList<MultilayerPaletteColor?> Cells);
+
+/// <summary>The palette as a grid: the variant suffix of each row and the colour groups as columns.</summary>
+public sealed record MultilayerPaletteGrid(IReadOnlyList<string> RowSuffixes, IReadOnlyList<MultilayerPaletteColumn> Columns);
+
 /// <summary>
 /// Layout of a multilayer template's colorScale overrides as a palette, after the palette of the Cyberpunk
 /// Blender add-on (materials/blender/multilayer.py): the overrides are grouped by the part of their name before
@@ -56,6 +62,61 @@ public static class MultilayerPalette
             .Select(g => g.Row)
             .ToList();
     }
+
+    /// <summary>
+    /// The palette as a strip of columns, like CDPR's material browser: the groups in the add-on's order as columns,
+    /// and one row per variant suffix ("00cf56_69039f" → "69039f"), so a row is the same saturation / value step
+    /// for every hue. The base colour ("_null") is the top row, the other suffixes follow from the most saturated
+    /// on average to the greyest. Templates whose suffixes aren't shared between groups (as many distinct
+    /// suffixes as twice the largest group, or more) keep each group's own order instead, top-aligned.
+    /// </summary>
+    public static MultilayerPaletteGrid GroupIntoGrid(IEnumerable<MultilayerPaletteColor> colors)
+    {
+        var groups = GroupIntoRows(colors);
+        if (groups.Count == 0)
+        {
+            return new MultilayerPaletteGrid([], []);
+        }
+
+        var stats = new Dictionary<string, (double Sum, int Count, int First)>(StringComparer.Ordinal);
+        var order = 0;
+        foreach (var color in groups.SelectMany(g => g))
+        {
+            var suffix = Suffix(color.Name);
+            var (_, s, _) = RgbToHsv(color.R, color.G, color.B);
+            stats[suffix] = stats.TryGetValue(suffix, out var st)
+                ? (st.Sum + s, st.Count + 1, st.First)
+                : (s, 1, order);
+            order++;
+        }
+
+        var largest = groups.Max(g => g.Count);
+        var aligned = stats.Count < largest * 2;
+        var suffixes = aligned
+            ? stats
+                .OrderBy(p => p.Key == "null" ? 0 : 1)
+                .ThenByDescending(p => p.Value.Sum / p.Value.Count)
+                .ThenBy(p => p.Value.First)
+                .Select(p => p.Key)
+                .ToList()
+            : [];
+
+        var columns = groups
+            .Select(group =>
+            {
+                var baseColor = group.FirstOrDefault(c => Suffix(c.Name) == "null");
+                var hue = baseColor is null ? int.MaxValue : StepSortKey(baseColor.R, baseColor.G, baseColor.B).Hue;
+                IReadOnlyList<MultilayerPaletteColor?> cells = aligned
+                    ? suffixes.Select(sfx => group.FirstOrDefault(c => Suffix(c.Name) == sfx)).ToList()
+                    : [.. group, .. Enumerable.Repeat<MultilayerPaletteColor?>(null, largest - group.Count)];
+                return new MultilayerPaletteColumn(hue, cells);
+            })
+            .ToList();
+
+        return new MultilayerPaletteGrid(suffixes, columns);
+    }
+
+    private static string Suffix(string name) => name.Split('_', 2) is { Length: 2 } parts ? parts[1] : "";
 
     private static IReadOnlyList<MultilayerPaletteColor> BaseFirst(List<MultilayerPaletteColor> group, out MultilayerPaletteColor? baseColor)
     {

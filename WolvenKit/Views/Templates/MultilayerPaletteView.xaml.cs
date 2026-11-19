@@ -28,6 +28,9 @@ namespace WolvenKit.Views.Editors
         /// <summary>Swatches of the grid: fewer per line, so larger.</summary>
         private const double GridSwatchSize = 22;
 
+        /// <summary>Gap in the grid where the next column starts another hue step.</summary>
+        private const double HueStepGap = 8;
+
         /// <summary>Space between the blocks of two groups.</summary>
         private const double GroupGap = 8;
 
@@ -136,7 +139,7 @@ namespace WolvenKit.Views.Editors
 
             if (s_gridMode)
             {
-                BuildGrid(rows, current);
+                BuildGrid(MultilayerPalette.GroupIntoGrid(colors), current);
                 return;
             }
 
@@ -160,34 +163,44 @@ namespace WolvenKit.Views.Editors
         }
 
         /// <summary>
-        /// The groups side by side as columns, base colour on top and the variants below it; a group shorter than
-        /// the others (a custom template) simply ends earlier. Scrolled so the current colour is in view.
+        /// One strip of columns, like CDPR's material browser: the colour groups side by side in the palette order,
+        /// a wider gap between hue steps, and one row per variant suffix, so a row is the same saturation step for
+        /// every hue; an empty cell is a variant the group doesn't have. Scrolled so the current colour is in view.
         /// </summary>
-        private void BuildGrid(IReadOnlyList<IReadOnlyList<MultilayerPaletteColor>> groups, string current)
+        private void BuildGrid(MultilayerPaletteGrid grid, string current)
         {
-            var currentColumn = -1;
-            for (var i = 0; i < groups.Count; i++)
+            var currentOffset = -1.0;
+            var x = 0.0;
+            for (var i = 0; i < grid.Columns.Count; i++)
             {
+                var gap = i + 1 < grid.Columns.Count && grid.Columns[i + 1].HueStep != grid.Columns[i].HueStep ? HueStepGap : 2;
                 var column = new StackPanel
                 {
                     Orientation = Orientation.Vertical,
-                    Margin = new Thickness(0, 0, 2, 0),
+                    Margin = new Thickness(0, 0, gap, 0),
                 };
-                foreach (var color in groups[i])
+                foreach (var color in grid.Columns[i].Cells)
                 {
+                    if (color is null)
+                    {
+                        column.Children.Add(CreateEmptyCell(GridSwatchSize));
+                        continue;
+                    }
+
                     var isCurrent = color.Name == current;
                     if (isCurrent)
                     {
-                        currentColumn = i;
+                        currentOffset = x;
                     }
 
                     column.Children.Add(CreateSwatch(color, isCurrent, GridSwatchSize));
                 }
 
                 ColumnsPanel.Children.Add(column);
+                x += GridSwatchSize + 2 + gap;
             }
 
-            var offset = currentColumn < 0 ? 0 : currentColumn * (GridSwatchSize + 4);
+            var offset = Math.Max(0, currentOffset);
             Dispatcher.InvokeAsync(() =>
                 GridScroll.ScrollToHorizontalOffset(Math.Max(0, offset - (GridScroll.ViewportWidth / 2))),
                 DispatcherPriority.Loaded);
@@ -201,6 +214,22 @@ namespace WolvenKit.Views.Editors
                 GridScroll.ScrollToHorizontalOffset(GridScroll.HorizontalOffset - e.Delta);
                 e.Handled = true;
             }
+        }
+
+        private static Border CreateEmptyCell(double size)
+        {
+            var cell = new Border
+            {
+                Width = size,
+                Height = size,
+                Margin = new Thickness(1),
+                BorderThickness = new Thickness(1),
+                Opacity = 0.35,
+                SnapsToDevicePixels = true,
+                ToolTip = "This group has no colour for this row",
+            };
+            cell.SetResourceReference(Border.BorderBrushProperty, "BorderAlt");
+            return cell;
         }
 
         private Border CreateSwatch(MultilayerPaletteColor color, bool isCurrent, double size = SwatchSize)
