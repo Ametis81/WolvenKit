@@ -1880,8 +1880,10 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
         }
         else if (Has(kind, MaterialKind.Decal))
         {
-            // Lies on the base mesh: tiny bias only.
-            sm.DepthBias = -1;
+            // Lies on the base mesh: tiny bias only. Decals on the face overlay meshes (cyberware on
+            // the freckles and lips meshes) are copies of the head surface, not floating above it:
+            // the makeup bias, as before they were decals.
+            sm.DepthBias = ContainsAny(sm.MaterialName, "hx_", "freckle", "frecle", "makeup", "_lips") ? -2 : -1;
             sm.IsTransparent = true;
         }
         else if (Has(kind, MaterialKind.Hair))
@@ -2518,6 +2520,8 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
 
                 // Own-mesh map of decals with NormalAlphaTex coverage (face cyberware), else the colour map.
                 var decalAlbedo = File.Exists(DecalViewPath(filename_bd)) ? DecalViewPath(filename_bd) : filename_bd;
+                Parent?.GetLoggerService()?.Debug($"[Decals] '{name}' as its own mesh: {Path.GetFileName(decalAlbedo)}" +
+                                                  (File.Exists(decalAlbedo) ? "" : " (missing)"));
                 if (File.Exists(decalAlbedo))
                 {
                     material.AlbedoMap = GetOrCreateTexture(decalAlbedo);
