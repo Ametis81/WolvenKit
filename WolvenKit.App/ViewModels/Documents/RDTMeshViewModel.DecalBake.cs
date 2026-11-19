@@ -480,8 +480,8 @@ public partial class RDTMeshViewModel
     /// A decal drawn as its own mesh shows only its colour coverage. Face cyberware and similar
     /// decals (UseNormalAlphaTex) are mostly metal and relief from NormalAlphaTex, with little or
     /// no colour alpha: drawn that way they vanished without blending. Their own-mesh map also
-    /// covers NormalAlphaTex, neutral grey where only the relief / metal is (the _rm map makes it
-    /// metal). The blend bake keeps using the colour map.
+    /// covers NormalAlphaTex, in the colour texture's own colours (a neutral grey there made them
+    /// look black and white). The blend bake keeps using the colour map.
     /// </summary>
     private async Task SaveDecalViewMap(Material material, Dictionary<string, object> dictionary, Pixels color, string bd)
     {
@@ -515,7 +515,6 @@ public partial class RDTMeshViewModel
 
     private static Pixels BuildDecalViewPixels(Pixels color, Pixels nat, float diffuseAlpha)
     {
-        const float neutral = 200f;
         var outPixels = new Pixels { W = color.W, H = color.H, Data = new byte[color.Data.Length] };
         Span<float> n4 = stackalloc float[4];
         for (var y = 0; y < color.H; y++)
@@ -531,11 +530,9 @@ public partial class RDTMeshViewModel
                     continue;
                 }
 
-                var share = cv / a;
-                for (var c = 0; c < 3; c++)
-                {
-                    outPixels.Data[o + c] = (byte)Math.Clamp(neutral + (color.Data[o + c] - neutral) * share, 0f, 255f);
-                }
+                outPixels.Data[o] = color.Data[o];
+                outPixels.Data[o + 1] = color.Data[o + 1];
+                outPixels.Data[o + 2] = color.Data[o + 2];
 
                 outPixels.Data[o + 3] = (byte)Math.Clamp(a * 255f, 0f, 255f);
             }
