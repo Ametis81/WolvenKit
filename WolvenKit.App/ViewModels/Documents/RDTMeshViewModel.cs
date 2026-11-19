@@ -7791,6 +7791,8 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
                             if (bmpSource.CanFreeze && !bmpSource.IsFrozen)
                                 bmpSource.Freeze();
                             var raw = BitmapSourceToBitmap(bmpSource);
+                            _loggerService.Debug($"[Decal] DiffuseTexture '{crrd.DepotPath.GetResolvedText()}' of '{material?.Name}': " +
+                                                 $"texture {it.GetType().Name}, decoded {raw.Width}x{raw.Height}");
                             var bmp = ExpandPlaceholder(raw);
                             // ExpandPlaceholder disposes raw when it replaces it
                             bool expanded = !ReferenceEquals(bmp, raw);
