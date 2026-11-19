@@ -242,7 +242,9 @@ public partial class RDTMeshViewModel
             .Where(x => !string.IsNullOrEmpty(x.Mesh.MaterialName))
             .ToList();
 
-        var surfaces = all.Where(x => IsDecalSurface(x.Mesh)).ToList();
+        // Only surfaces that are drawn: the body of the hidden AppearanceProxyMesh (and shadow /
+        // cutout meshes) lies right at the skin and took tattoos, which then vanished from view.
+        var surfaces = all.Where(x => x.Model.IsEnabled && IsDecalSurface(x.Mesh)).ToList();
         var result = new List<DecalLayer>();
         if (surfaces.Count == 0)
         {
