@@ -2518,13 +2518,11 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
                 material.MetallicFactor = metal;
                 material.RenderEnvironmentMap = false;
 
-                // Own-mesh map of decals with NormalAlphaTex coverage (face cyberware), else the colour map.
-                var decalAlbedo = File.Exists(DecalViewPath(filename_bd)) ? DecalViewPath(filename_bd) : filename_bd;
-                Parent?.GetLoggerService()?.Debug($"[Decals] '{name}' as its own mesh: {Path.GetFileName(decalAlbedo)}" +
-                                                  (File.Exists(decalAlbedo) ? "" : " (missing)"));
-                if (File.Exists(decalAlbedo))
+                Parent?.GetLoggerService()?.Debug($"[Decals] '{name}' as its own mesh: {Path.GetFileName(filename_bd)}" +
+                                                  (File.Exists(filename_bd) ? "" : " (missing)"));
+                if (File.Exists(filename_bd))
                 {
-                    material.AlbedoMap = GetOrCreateTexture(decalAlbedo);
+                    material.AlbedoMap = GetOrCreateTexture(filename_bd);
                     material.RenderAlbedoMap = true;
                     material.AlbedoColor = new SharpDX.Color4(0.8f, 0.8f, 0.8f, 1f);
                 }

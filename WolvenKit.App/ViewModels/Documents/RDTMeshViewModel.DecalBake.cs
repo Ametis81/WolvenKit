@@ -473,77 +473,6 @@ public partial class RDTMeshViewModel
                Has(ClassifyMaterialFor(material.Name, material), MaterialKind.Decal);
     }
 
-    /// <summary>The colour map the decal is drawn with as its own mesh (see SaveDecalViewMap).</summary>
-    private static string DecalViewPath(string bd) => bd[..^"_d.png".Length] + "_view.png";
-
-    /// <summary>
-    /// A decal drawn as its own mesh shows only its colour coverage. Face cyberware and similar
-    /// decals (UseNormalAlphaTex) are mostly metal and relief from NormalAlphaTex, with little or
-    /// no colour alpha: drawn that way they vanished without blending. Their own-mesh map also
-    /// covers NormalAlphaTex, neutral grey where only the relief / metal is (the _rm map makes it
-    /// metal). The blend bake keeps using the colour map.
-    /// </summary>
-    private async Task SaveDecalViewMap(Material material, Dictionary<string, object> dictionary, Pixels color, string bd)
-    {
-        var view = DecalViewPath(bd);
-        if (File.Exists(view))
-        {
-            File.Delete(view);
-        }
-
-        if (!dictionary.TryGetValue("UseNormalAlphaTex", out var useObj) || ReadFloat(useObj) < 0.5f ||
-            !dictionary.TryGetValue("NormalAlphaTex", out var natObj) ||
-            natObj is not WolvenKit.RED4.Types.CResourceReference<WolvenKit.RED4.Types.ITexture> natRef ||
-            natRef.DepotPath == WolvenKit.RED4.Types.ResourcePath.Empty ||
-            // editor placeholders (white.xbm): the whole decal quad would be covered
-            (natRef.DepotPath.GetResolvedText() ?? string.Empty).StartsWith(@"engine\textures\editor\", StringComparison.OrdinalIgnoreCase))
-        {
-            return;
-        }
-
-        using var natBmp = await LoadTextureAsBitmap(natRef.DepotPath);
-        var nat = Pixels.From(natBmp);
-        if (nat == null)
-        {
-            return;
-        }
-
-        var outPixels = BuildDecalViewPixels(color, nat, Math.Min(1f, DecalAlpha(material, "DiffuseAlpha")));
-        using var bmp = outPixels.ToBitmap();
-        SavePngAtomic(bmp, view);
-    }
-
-    private static Pixels BuildDecalViewPixels(Pixels color, Pixels nat, float diffuseAlpha)
-    {
-        const float neutral = 200f;
-        var outPixels = new Pixels { W = color.W, H = color.H, Data = new byte[color.Data.Length] };
-        Span<float> n4 = stackalloc float[4];
-        for (var y = 0; y < color.H; y++)
-        {
-            for (var x = 0; x < color.W; x++)
-            {
-                var o = (y * color.W + x) * 4;
-                nat.Sample((x + 0.5) / color.W, (y + 0.5) / color.H, n4);
-                var cv = color.Data[o + 3] / 255f * diffuseAlpha;
-                var a = Math.Max(cv, n4[2]);
-                if (a <= 0f)
-                {
-                    continue;
-                }
-
-                var share = cv / a;
-                for (var c = 0; c < 3; c++)
-                {
-                    outPixels.Data[o + c] = (byte)Math.Clamp(neutral + (color.Data[o + c] - neutral) * share, 0f, 255f);
-                }
-
-                outPixels.Data[o + 3] = (byte)Math.Clamp(a * 255f, 0f, 255f);
-            }
-        }
-
-        return outPixels;
-    }
-
     /// <summary>
     /// The decal's baked maps as the game samples them (Blender add-on decal_nodes.py):
     /// UV = frac(rotate((uv - 0.5) * UVScale, UVRotation * pi) + 0.5 + UVOffset) in mesh UV
@@ -685,7 +614,6 @@ public partial class RDTMeshViewModel
 
             ApplyCoverage(color, secondary);
             Save(color, bd);
-            await SaveDecalViewMap(material, dictionary, color, bd);
         }
         catch (Exception ex)
         {
