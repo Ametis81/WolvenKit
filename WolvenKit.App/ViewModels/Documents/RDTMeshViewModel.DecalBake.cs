@@ -1589,8 +1589,9 @@ public partial class RDTMeshViewModel
     private string DecalCompositeKey(string surfaceName, List<DecalLayer> decals)
     {
         // Composite format: bump when the bake changes (v2: decal detail resolution; v3: one-sided overlay; v4: alpha above 1, NormalAlphaTex;
-        // v5: each texel takes a layer once, no triangle lines; v6: triangles over bends and seams in pieces).
-        var sb = new System.Text.StringBuilder("v6;");
+        // v5: each texel takes a layer once, no triangle lines; v6: triangles over bends and seams in pieces;
+        // v7: only covered texels are taken, transparent atlas parts no longer cut other pieces).
+        var sb = new System.Text.StringBuilder("v7;");
         void Stamp(string path)
         {
             sb.Append(path).Append('|');
@@ -2111,7 +2112,7 @@ public partial class RDTMeshViewModel
                                 color.Data[o] = (byte)Math.Clamp(color.Data[o] + (s[c] * 255f - color.Data[o]) * a, 0f, 255f);
                             }
                         }
-                    });
+                    }, uv => Coverage(dC, uv) * layer.DiffuseAlpha > 0f);
                 }
 
                 if (normal is { } nTarget && dNormal is { } dN && (layer.NormalAlpha > 0f || layer.UseNormalAlphaTex))
@@ -2163,7 +2164,7 @@ public partial class RDTMeshViewModel
                         nTarget.Data[px + 2] = (byte)((ox / len * 0.5f + 0.5f) * 255f);
                         nTarget.Data[px + 1] = (byte)((oy / len * 0.5f + 0.5f) * 255f);
                         nTarget.Data[px] = (byte)((oz / len * 0.5f + 0.5f) * 255f);
-                    });
+                    }, uv => NormalCoverage(layer, dColor, uv) > 0f);
                 }
 
                 if (rm is { } rmTarget && layer.RmAlpha > 0f)
@@ -2187,7 +2188,7 @@ public partial class RDTMeshViewModel
 
                         rmTarget.Data[px + 1] = (byte)Math.Clamp(rmTarget.Data[px + 1] + (r * 255f - rmTarget.Data[px + 1]) * a, 0f, 255f);
                         rmTarget.Data[px] = (byte)Math.Clamp(rmTarget.Data[px] + (m * 255f - rmTarget.Data[px]) * a, 0f, 255f);
-                    });
+                    }, uv => Coverage(dColor, uv) * layer.RmAlpha > 0f);
                 }
             }
         }
@@ -2408,6 +2409,11 @@ public partial class RDTMeshViewModel
 
                         Over(rmT.Data, px, 1f, r, m, aRm);
                     }
+                }, uv =>
+                {
+                    var cov = Coverage(dColor, uv);
+                    return (dColor != null && cov * layer.DiffuseAlpha > 0f) || cov * layer.RmAlpha > 0f ||
+                           NormalCoverage(layer, dColor, uv) > 0f;
                 });
             }
         }
@@ -2672,7 +2678,7 @@ public partial class RDTMeshViewModel
     /// the first triangle), the rim pass the still free ones within about half a pixel of it.
     /// </summary>
     private static void RasterizeInto(Pixels target, double[] suv, double[] duv, bool[] claimed, bool rim,
-        Action<int, (double U, double V)> pixel)
+        Action<int, (double U, double V)> pixel, Func<(double U, double V), bool>? covers = null)
     {
         double x0 = suv[0] * target.W, y0 = suv[1] * target.H;
         double x1 = suv[2] * target.W, y1 = suv[3] * target.H;
@@ -2718,9 +2724,16 @@ public partial class RDTMeshViewModel
                     continue;
                 }
 
-                claimed[index] = true;
                 var u = w0 * duv[0] + w1 * duv[2] + w2 * duv[4];
                 var v = w0 * duv[1] + w1 * duv[3] + w2 * duv[5];
+                // A texel the decal leaves uncovered here (the transparent part of an atlas
+                // piece) is not claimed: another piece of the same decal may cover it.
+                if (covers != null && !covers((u, v)))
+                {
+                    continue;
+                }
+
+                claimed[index] = true;
                 pixel(index * 4, (u, v));
             }
         }
