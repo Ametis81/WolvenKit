@@ -1731,10 +1731,8 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
         }
         else if (Has(kind, MaterialKind.Decal))
         {
-            // Lies on the base mesh: tiny bias only. Decals on the face overlay meshes (cyberware on
-            // the freckles and lips meshes) are copies of the head surface, not floating above it:
-            // the makeup bias, or they lose the depth test against the skin.
-            sm.DepthBias = ContainsAny(sm.MaterialName ?? string.Empty, "hx_", "freckle", "frecle", "makeup", "_lips") ? -2 : -1;
+            // Lies on the base mesh: tiny bias only.
+            sm.DepthBias = -1;
             sm.IsTransparent = true;
         }
         else if (Has(kind, MaterialKind.Hair))
