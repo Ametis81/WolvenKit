@@ -515,29 +515,24 @@ public partial class RDTMeshViewModel
 
     private static Pixels BuildDecalViewPixels(Pixels color, Pixels nat, float diffuseAlpha)
     {
-        // At the larger of the two sizes: a mask finer than the colour texture keeps its edges.
-        int w = Math.Max(color.W, nat.W), h = Math.Max(color.H, nat.H);
-        var outPixels = new Pixels { W = w, H = h, Data = new byte[w * h * 4] };
+        var outPixels = new Pixels { W = color.W, H = color.H, Data = new byte[color.Data.Length] };
         Span<float> n4 = stackalloc float[4];
-        Span<float> c4 = stackalloc float[4];
-        for (var y = 0; y < h; y++)
+        for (var y = 0; y < color.H; y++)
         {
-            for (var x = 0; x < w; x++)
+            for (var x = 0; x < color.W; x++)
             {
-                var o = (y * w + x) * 4;
-                double u = (x + 0.5) / w, v = (y + 0.5) / h;
-                nat.Sample(u, v, n4);
-                color.Sample(u, v, c4);
-                var cv = c4[3] * diffuseAlpha;
+                var o = (y * color.W + x) * 4;
+                nat.Sample((x + 0.5) / color.W, (y + 0.5) / color.H, n4);
+                var cv = color.Data[o + 3] / 255f * diffuseAlpha;
                 var a = Math.Max(cv, n4[2]);
                 if (a <= 0f)
                 {
                     continue;
                 }
 
-                outPixels.Data[o] = (byte)Math.Clamp(c4[0] * 255f, 0f, 255f);
-                outPixels.Data[o + 1] = (byte)Math.Clamp(c4[1] * 255f, 0f, 255f);
-                outPixels.Data[o + 2] = (byte)Math.Clamp(c4[2] * 255f, 0f, 255f);
+                outPixels.Data[o] = color.Data[o];
+                outPixels.Data[o + 1] = color.Data[o + 1];
+                outPixels.Data[o + 2] = color.Data[o + 2];
 
                 outPixels.Data[o + 3] = (byte)Math.Clamp(a * 255f, 0f, 255f);
             }
