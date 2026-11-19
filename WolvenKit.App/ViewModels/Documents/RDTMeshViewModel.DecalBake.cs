@@ -535,14 +535,9 @@ public partial class RDTMeshViewModel
                     continue;
                 }
 
-                // Colour from the nearest texel, not filtered: transparent texels often hold black,
-                // and filtering them in drew a dark frame around the decal's edges.
-                var cx = Math.Min(color.W - 1, (int)(u * color.W));
-                var cy = Math.Min(color.H - 1, (int)(v * color.H));
-                var co = (cy * color.W + cx) * 4;
-                outPixels.Data[o] = color.Data[co];
-                outPixels.Data[o + 1] = color.Data[co + 1];
-                outPixels.Data[o + 2] = color.Data[co + 2];
+                outPixels.Data[o] = (byte)Math.Clamp(c4[0] * 255f, 0f, 255f);
+                outPixels.Data[o + 1] = (byte)Math.Clamp(c4[1] * 255f, 0f, 255f);
+                outPixels.Data[o + 2] = (byte)Math.Clamp(c4[2] * 255f, 0f, 255f);
 
                 outPixels.Data[o + 3] = (byte)Math.Clamp(a * 255f, 0f, 255f);
             }
