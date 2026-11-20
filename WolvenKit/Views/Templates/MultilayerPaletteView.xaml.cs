@@ -10,6 +10,7 @@ using System.Windows.Media;
 using System.Windows.Threading;
 using Splat;
 using WolvenKit.App.Helpers;
+using WolvenKit.App.Services;
 using WolvenKit.App.ViewModels.Shell;
 using WolvenKit.RED4.Types;
 
@@ -36,8 +37,37 @@ namespace WolvenKit.Views.Editors
         /// <summary>Open or closed for all layers and files of the session.</summary>
         private static bool s_isExpanded = true;
 
-        /// <summary>Groups as columns (grid) or as rows, for all layers and files of the session.</summary>
-        private static bool s_gridMode;
+        /// <summary>Groups as columns (grid) or as rows, when there are no settings to keep it in.</summary>
+        private static bool s_gridMode = true;
+
+        /// <summary>
+        /// Visibility of the colorScale dropdown above the palette: collapsed while there is a palette to pick from,
+        /// unless the settings ask for the dropdown too; visible as the fallback when there isn't.
+        /// </summary>
+        public static readonly DependencyProperty DropdownVisibilityProperty = DependencyProperty.Register(
+            nameof(DropdownVisibility), typeof(Visibility), typeof(MultilayerPaletteView), new PropertyMetadata(Visibility.Visible));
+
+        public Visibility DropdownVisibility
+        {
+            get => (Visibility)GetValue(DropdownVisibilityProperty);
+            set => SetValue(DropdownVisibilityProperty, value);
+        }
+
+        private static ISettingsManager Settings => Locator.Current.GetService<ISettingsManager>();
+
+        /// <summary>Grid or rows, kept in the settings (also in the settings page).</summary>
+        private static bool GridMode
+        {
+            get => Settings?.MultilayerPaletteGrid ?? s_gridMode;
+            set
+            {
+                s_gridMode = value;
+                if (Settings is { } settings)
+                {
+                    settings.MultilayerPaletteGrid = value;
+                }
+            }
+        }
 
         private ChunkViewModel _subscribed;
 
@@ -53,7 +83,7 @@ namespace WolvenKit.Views.Editors
             PaletteExpander.Collapsed += (_, _) => s_isExpanded = false;
 
             // on = Rows
-            ModeSwitch.SetCurrentValue(MahApps.Metro.Controls.ToggleSwitch.IsOnProperty, !s_gridMode);
+            ModeSwitch.SetCurrentValue(MahApps.Metro.Controls.ToggleSwitch.IsOnProperty, !GridMode);
 
             DataContextChanged += (_, _) => Subscribe();
             Loaded += (_, _) => Subscribe();
@@ -96,9 +126,9 @@ namespace WolvenKit.Views.Editors
 
         private void SetMode(bool grid)
         {
-            if (s_gridMode != grid)
+            if (GridMode != grid)
             {
-                s_gridMode = grid;
+                GridMode = grid;
                 Rebuild();
             }
         }
@@ -107,8 +137,12 @@ namespace WolvenKit.Views.Editors
         {
             RowsPanel.Children.Clear();
             ColumnsPanel.Children.Clear();
-            GridScroll.SetCurrentValue(VisibilityProperty, s_gridMode ? Visibility.Visible : Visibility.Collapsed);
-            RowsScroll.SetCurrentValue(VisibilityProperty, s_gridMode ? Visibility.Collapsed : Visibility.Visible);
+            var gridMode = GridMode;
+            ModeSwitch.SetCurrentValue(MahApps.Metro.Controls.ToggleSwitch.IsOnProperty, !gridMode);
+            GridScroll.SetCurrentValue(VisibilityProperty, gridMode ? Visibility.Visible : Visibility.Collapsed);
+            RowsScroll.SetCurrentValue(VisibilityProperty, gridMode ? Visibility.Collapsed : Visibility.Visible);
+            // the dropdown is the fallback: shown until there's a palette to pick from
+            SetCurrentValue(DropdownVisibilityProperty, Visibility.Visible);
 
             if (Cvm is not { ParentData: Multilayer_Layer layer } cvm ||
                 layer.Material.DepotPath.GetResolvedText() is not { Length: > 0 } template ||
@@ -136,12 +170,18 @@ namespace WolvenKit.Views.Editors
                 return;
             }
 
+            if (Settings is not { ShowColorScaleDropdown: true })
+            {
+                SetCurrentValue(DropdownVisibilityProperty, Visibility.Collapsed);
+            }
+
             var current = cvm.ResolvedData is CName name ? name.GetResolvedText() : null;
             var rows = MultilayerPalette.GroupIntoRows(colors);
+            // with the dropdown hidden the header names the current colour
             PaletteExpander.SetCurrentValue(HeaderedContentControl.HeaderProperty,
-                $"Palette: {colors.Count} colours in {rows.Count} groups");
+                $"Palette: {colors.Count} colours in {rows.Count} groups" + (current is { Length: > 0 } ? $"  ·  {current}" : ""));
 
-            if (s_gridMode)
+            if (gridMode)
             {
                 BuildGrid(MultilayerPalette.GroupIntoGrid(colors), current);
                 return;
