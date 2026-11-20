@@ -64,8 +64,8 @@ public static class MultilayerPalette
     }
 
     /// <summary>
-    /// The palette as a strip of columns, like CDPR's material browser: the groups as columns in plain hue order
-    /// (greys first, light to dark, then by the hue of the base colour, light before dark within the same hue),
+    /// The palette as a strip of columns, like CDPR's material browser: the groups as columns in blocks by the hue
+    /// step of their base colour (greys first, then the add-on's 8 hue steps), light to dark inside every block,
     /// and one row per variant suffix ("00cf56_69039f" → "69039f"), so a row is the same saturation / value step
     /// for every hue. The base colour ("_null") is the top row, the other suffixes follow from the most saturated
     /// on average to the greyest. Templates whose suffixes aren't shared between groups (as many distinct
@@ -76,8 +76,9 @@ public static class MultilayerPalette
         var groups = GroupIntoRows(colors)
             .Select((group, index) => (Group: group, Index: index, Key: HueSortKey(group)))
             .OrderBy(g => g.Key.Kind)
+            .ThenBy(g => g.Key.HueStep)
+            .ThenByDescending(g => g.Key.Luminance)
             .ThenBy(g => g.Key.Hue)
-            .ThenByDescending(g => g.Key.Value)
             .ThenBy(g => g.Index)
             .Select(g => g.Group)
             .ToList();
@@ -124,16 +125,21 @@ public static class MultilayerPalette
         return new MultilayerPaletteGrid(suffixes, columns);
     }
 
-    /// <summary>Greys (0), colours (1), groups without a base colour (2, in palette order); then hue and value.</summary>
-    private static (int Kind, double Hue, double Value) HueSortKey(IReadOnlyList<MultilayerPaletteColor> group)
+    /// <summary>
+    /// Greys (0), colours (1), groups without a base colour (2, in palette order); then the hue step (the add-on's
+    /// 8 steps), the perceived brightness (the add-on's formula) and the hue. Unlike the add-on's step sort the
+    /// brightness runs the same way in every step: the grid's gaps already separate the steps.
+    /// </summary>
+    private static (int Kind, int HueStep, double Luminance, double Hue) HueSortKey(IReadOnlyList<MultilayerPaletteColor> group)
     {
         if (group.FirstOrDefault(c => Suffix(c.Name) == "null") is not { } baseColor)
         {
-            return (2, 0, 0);
+            return (2, 0, 0, 0);
         }
 
-        var (h, s, v) = RgbToHsv(baseColor.R, baseColor.G, baseColor.B);
-        return s < 0.01 ? (0, 0, v) : (1, h, v);
+        var (h, s, _) = RgbToHsv(baseColor.R, baseColor.G, baseColor.B);
+        var luminance = Math.Sqrt((0.241 * baseColor.R) + (0.691 * baseColor.G) + (0.068 * baseColor.B));
+        return s < 0.01 ? (0, 0, luminance, 0) : (1, (int)(h * 8), luminance, h);
     }
 
     private static string Suffix(string name) => name.Split('_', 2) is { Length: 2 } parts ? parts[1] : "";

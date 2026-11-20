@@ -59,10 +59,11 @@ public class MultilayerPaletteTests
     }
 
     [Fact]
-    public void GroupIntoGrid_ColumnsInPlainHueOrder_GreysFirst()
+    public void GroupIntoGrid_ColumnsByHueStep_LightToDarkInEachStep_GreysFirst()
     {
         var colors = new[]
         {
+            C("orange_null", 1.0f, 0.6f, 0.2f), // same hue step as red, lighter: before it
             C("blue_null", 0.2f, 0.4f, 0.9f),
             C("red_null", 0.9f, 0.1f, 0.1f),
             C("dark_null", 0.2f, 0.2f, 0.2f),
@@ -73,7 +74,7 @@ public class MultilayerPaletteTests
 
         var grid = MultilayerPalette.GroupIntoGrid(colors);
 
-        Assert.Equal(new[] { "light", "dark", "red", "darkred", "green", "blue" },
+        Assert.Equal(new[] { "light", "dark", "orange", "red", "darkred", "green", "blue" },
             grid.Columns.Select(c => c.Cells[0]!.Name.Split('_')[0]));
     }
 
