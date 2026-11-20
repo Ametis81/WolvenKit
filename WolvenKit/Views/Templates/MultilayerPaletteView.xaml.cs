@@ -148,7 +148,8 @@ namespace WolvenKit.Views.Editors
             }
 
             // same width for the groups, so the blocks line up in columns: the most common group size, not the
-            // largest, so one group with custom colours doesn't widen every block; that group is just wider
+            // largest, so one group with custom colours doesn't widen every block; its extra colours wrap to a
+            // second line inside its own block instead of pushing the next blocks out of line
             var typical = rows
                 .GroupBy(row => row.Count)
                 .OrderByDescending(g => g.Count())
@@ -156,10 +157,10 @@ namespace WolvenKit.Views.Editors
                 .First().Key;
             foreach (var row in rows)
             {
-                var panel = new StackPanel
+                var panel = new WrapPanel
                 {
                     Orientation = Orientation.Horizontal,
-                    Width = Math.Max(typical, row.Count) * (SwatchSize + 1),
+                    Width = typical * (SwatchSize + 1),
                     Margin = new Thickness(0, 0, GroupGap, 1),
                 };
                 foreach (var color in row)
