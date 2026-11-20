@@ -464,24 +464,31 @@
         Context menu of text inputs (Cut / Copy / Paste). Without one of our own, WPF builds the system menu: white,
         whatever the theme, with disabled items hard to read. x:Shared="False": each text box gets its own menu.
     -->
+    <!--  Look of the text input menus: theme colors, compact items with their shortcut (see below)  -->
+    <Style x:Key="WolvenKitTextEditContextMenuStyle" TargetType="{x:Type ContextMenu}">
+        <Setter Property="ItemContainerStyle" Value="{StaticResource WolvenKitTabListMenuItemStyle}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type ContextMenu}">
+                    <Border
+                        Padding="0,4"
+                        Background="{DynamicResource ContentBackgroundAlt3}"
+                        BorderBrush="{DynamicResource BorderAlt}"
+                        BorderThickness="1"
+                        SnapsToDevicePixels="True">
+                        <ItemsPresenter
+                            KeyboardNavigation.DirectionalNavigation="Cycle"
+                            TextElement.Foreground="{DynamicResource ContentForeground}" />
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <ContextMenu
         x:Key="WolvenKitTextEditContextMenu"
         x:Shared="False"
-        ItemContainerStyle="{StaticResource WolvenKitTabListMenuItemStyle}">
-        <ContextMenu.Template>
-            <ControlTemplate TargetType="{x:Type ContextMenu}">
-                <Border
-                    Padding="0,4"
-                    Background="{DynamicResource ContentBackgroundAlt3}"
-                    BorderBrush="{DynamicResource BorderAlt}"
-                    BorderThickness="1"
-                    SnapsToDevicePixels="True">
-                    <ItemsPresenter
-                        KeyboardNavigation.DirectionalNavigation="Cycle"
-                        TextElement.Foreground="{DynamicResource ContentForeground}" />
-                </Border>
-            </ControlTemplate>
-        </ContextMenu.Template>
+        Style="{StaticResource WolvenKitTextEditContextMenuStyle}">
         <MenuItem Command="ApplicationCommands.Cut" />
         <MenuItem Command="ApplicationCommands.Copy" />
         <MenuItem Command="ApplicationCommands.Paste" />
