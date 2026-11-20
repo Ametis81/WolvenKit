@@ -418,6 +418,7 @@
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="22" />
                                 <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
                             <Path
                                 x:Name="CheckMark"
@@ -434,6 +435,13 @@
                                 VerticalAlignment="Center"
                                 ContentSource="Header"
                                 RecognizesAccessKey="True" />
+                            <!--  shortcut of a command item (Ctrl+X …); empty for the tab list  -->
+                            <TextBlock
+                                Grid.Column="2"
+                                Margin="24,0,0,0"
+                                VerticalAlignment="Center"
+                                Opacity="0.7"
+                                Text="{TemplateBinding InputGestureText}" />
                         </Grid>
                     </Border>
                     <ControlTemplate.Triggers>
