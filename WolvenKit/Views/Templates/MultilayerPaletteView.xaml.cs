@@ -147,14 +147,19 @@ namespace WolvenKit.Views.Editors
                 return;
             }
 
-            // same width for every group, so the blocks line up in columns
-            var groupWidth = rows.Max(row => row.Count) * (SwatchSize + 1);
+            // same width for the groups, so the blocks line up in columns: the most common group size, not the
+            // largest, so one group with custom colours doesn't widen every block; that group is just wider
+            var typical = rows
+                .GroupBy(row => row.Count)
+                .OrderByDescending(g => g.Count())
+                .ThenByDescending(g => g.Key)
+                .First().Key;
             foreach (var row in rows)
             {
                 var panel = new StackPanel
                 {
                     Orientation = Orientation.Horizontal,
-                    Width = groupWidth,
+                    Width = Math.Max(typical, row.Count) * (SwatchSize + 1),
                     Margin = new Thickness(0, 0, GroupGap, 1),
                 };
                 foreach (var color in row)

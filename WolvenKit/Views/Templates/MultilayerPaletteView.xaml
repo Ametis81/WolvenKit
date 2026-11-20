@@ -21,7 +21,7 @@
                     on the right, like the search box of the file editor: search, the switch between the two layouts
                     of the palette (the choice holds for all layers and files of the session) and the template copy
                 -->
-                <DockPanel Margin="0,0,0,4" LastChildFill="False">
+                <DockPanel Margin="0,0,4,4" LastChildFill="False">
                     <!-- only for templates that aren't the project's own yet -->
                     <Button
                         x:Name="CopyTemplateButton"
