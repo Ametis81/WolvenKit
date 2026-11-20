@@ -34,7 +34,11 @@
                     HorizontalScrollBarVisibility="Auto"
                     VerticalScrollBarVisibility="Disabled"
                     PreviewMouseWheel="GridScroll_OnPreviewMouseWheel">
-                    <StackPanel x:Name="ColumnsPanel" Orientation="Horizontal" />
+                    <!-- bottom margin: the scroll bar sits below the swatches, not against them -->
+                    <StackPanel
+                        x:Name="ColumnsPanel"
+                        Margin="0,0,0,8"
+                        Orientation="Horizontal" />
                 </ScrollViewer>
 
                 <ScrollViewer
