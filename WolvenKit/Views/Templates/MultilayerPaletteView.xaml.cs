@@ -31,7 +31,7 @@ namespace WolvenKit.Views.Editors
         private const double HueStepGap = 8;
 
         /// <summary>Space between the blocks of two groups.</summary>
-        private const double GroupGap = 8;
+        private const double GroupGap = 4;
 
         /// <summary>Open or closed for all layers and files of the session.</summary>
         private static bool s_isExpanded = true;
@@ -148,18 +148,18 @@ namespace WolvenKit.Views.Editors
             }
 
             // same width for every group, so the blocks line up in columns
-            var groupWidth = rows.Max(row => row.Count) * (SwatchSize + 2);
+            var groupWidth = rows.Max(row => row.Count) * (SwatchSize + 1);
             foreach (var row in rows)
             {
                 var panel = new StackPanel
                 {
                     Orientation = Orientation.Horizontal,
                     Width = groupWidth,
-                    Margin = new Thickness(0, 0, GroupGap, GroupGap / 2),
+                    Margin = new Thickness(0, 0, GroupGap, 1),
                 };
                 foreach (var color in row)
                 {
-                    panel.Children.Add(CreateSwatch(color, color.Name == current));
+                    panel.Children.Add(CreateSwatch(color, color.Name == current, SwatchSize, s_gridSwatchMargin));
                 }
 
                 RowsPanel.Children.Add(panel);
@@ -227,7 +227,7 @@ namespace WolvenKit.Views.Editors
             }
         }
 
-        /// <summary>1 px between the swatches of the grid.</summary>
+        /// <summary>1 px between the swatches (both layouts).</summary>
         private static readonly Thickness s_gridSwatchMargin = new(0, 0, 1, 1);
 
         private bool Matches(MultilayerPaletteColor color) =>
