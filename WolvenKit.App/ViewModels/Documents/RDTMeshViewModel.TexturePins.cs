@@ -12,10 +12,15 @@ namespace WolvenKit.App.ViewModels.Documents;
 /// Keeps the GPU textures of generated appearances loaded. Helix frees a texture once no shown
 /// material uses it, so switching back to an appearance re-decoded and re-uploaded all of its
 /// PNGs; a reference held here keeps them on the GPU until the tab closes or the cache is cleared.
+/// Only the last few appearances are held, so a character with many of them doesn't fill the GPU.
 /// </summary>
 public partial class RDTMeshViewModel
 {
+    private const int PinnedAppearances = 3;
+
     private readonly Dictionary<Appearance, List<ShaderResourceViewProxy>> _texturePins = new();
+    // most recently shown last
+    private readonly List<Appearance> _texturePinOrder = new();
     private EffectsManager? _texturePinsManager;
 
     /// <summary>Holds the textures of the appearance's materials (again: drops its old ones).</summary>
@@ -30,6 +35,7 @@ public partial class RDTMeshViewModel
         {
             // Pins of a previous (disposed) effects manager are gone with it.
             _texturePins.Clear();
+            _texturePinOrder.Clear();
             _texturePinsManager = effects;
         }
 
@@ -71,6 +77,18 @@ public partial class RDTMeshViewModel
         }
 
         _texturePins[app] = pins;
+        _texturePinOrder.Remove(app);
+        _texturePinOrder.Add(app);
+
+        while (_texturePinOrder.Count > PinnedAppearances)
+        {
+            var oldest = _texturePinOrder[0];
+            _texturePinOrder.RemoveAt(0);
+            if (_texturePins.Remove(oldest, out var oldestPins))
+            {
+                Release(oldestPins);
+            }
+        }
     }
 
     /// <summary>Lets Helix free the held textures (cache cleared, tab closed).</summary>
@@ -85,6 +103,7 @@ public partial class RDTMeshViewModel
         }
 
         _texturePins.Clear();
+        _texturePinOrder.Clear();
         _texturePinsManager = null;
     }
 
