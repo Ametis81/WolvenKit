@@ -42,6 +42,9 @@ namespace WolvenKit.Views.Editors
 
         private ChunkViewModel _subscribed;
 
+        /// <summary>Text of the search box: colours whose name doesn't contain it are dimmed.</summary>
+        private string _search = "";
+
         public MultilayerPaletteView()
         {
             InitializeComponent();
@@ -125,13 +128,14 @@ namespace WolvenKit.Views.Editors
             CopyTemplateButton.SetCurrentValue(VisibilityProperty,
                 cvm.CanCopyMultilayerTemplate() ? Visibility.Visible : Visibility.Collapsed);
 
+            PaletteExpander.SetCurrentValue(VisibilityProperty, exists ? Visibility.Visible : Visibility.Collapsed);
+            // a template without colours still shows the header row: its copy button is how colours get added
             if (documentTools.GetMultilayerPalette(template) is not { Count: > 0 } colors)
             {
-                PaletteExpander.SetCurrentValue(VisibilityProperty, Visibility.Collapsed);
+                PaletteExpander.SetCurrentValue(HeaderedContentControl.HeaderProperty, "Palette: no colours");
                 return;
             }
 
-            PaletteExpander.SetCurrentValue(VisibilityProperty, Visibility.Visible);
             var current = cvm.ResolvedData is CName name ? name.GetResolvedText() : null;
             var rows = MultilayerPalette.GroupIntoRows(colors);
             PaletteExpander.SetCurrentValue(HeaderedContentControl.HeaderProperty,
@@ -170,10 +174,11 @@ namespace WolvenKit.Views.Editors
         private void BuildGrid(MultilayerPaletteGrid grid, string current)
         {
             var currentOffset = -1.0;
+            var matchOffset = -1.0;
             var x = 0.0;
             for (var i = 0; i < grid.Columns.Count; i++)
             {
-                var gap = i + 1 < grid.Columns.Count && grid.Columns[i + 1].HueStep != grid.Columns[i].HueStep ? HueStepGap : 2;
+                var gap = i + 1 < grid.Columns.Count && grid.Columns[i + 1].HueStep != grid.Columns[i].HueStep ? HueStepGap : 0;
                 var column = new StackPanel
                 {
                     Orientation = Orientation.Vertical,
@@ -183,7 +188,7 @@ namespace WolvenKit.Views.Editors
                 {
                     if (color is null)
                     {
-                        column.Children.Add(CreateEmptyCell(GridSwatchSize));
+                        column.Children.Add(CreateEmptyCell(GridSwatchSize, s_gridSwatchMargin));
                         continue;
                     }
 
@@ -193,14 +198,20 @@ namespace WolvenKit.Views.Editors
                         currentOffset = x;
                     }
 
-                    column.Children.Add(CreateSwatch(color, isCurrent, GridSwatchSize));
+                    if (matchOffset < 0 && Matches(color))
+                    {
+                        matchOffset = x;
+                    }
+
+                    column.Children.Add(CreateSwatch(color, isCurrent, GridSwatchSize, s_gridSwatchMargin));
                 }
 
                 ColumnsPanel.Children.Add(column);
-                x += GridSwatchSize + 2 + gap;
+                x += GridSwatchSize + 1 + gap;
             }
 
-            var offset = Math.Max(0, currentOffset);
+            // searching: the first match in view; else the current colour
+            var offset = Math.Max(0, _search.Length > 0 && matchOffset >= 0 ? matchOffset : currentOffset);
             Dispatcher.InvokeAsync(() =>
                 GridScroll.ScrollToHorizontalOffset(Math.Max(0, offset - (GridScroll.ViewportWidth / 2))),
                 DispatcherPriority.Loaded);
@@ -216,13 +227,26 @@ namespace WolvenKit.Views.Editors
             }
         }
 
-        private static Border CreateEmptyCell(double size)
+        /// <summary>1 px between the swatches of the grid.</summary>
+        private static readonly Thickness s_gridSwatchMargin = new(0, 0, 1, 1);
+
+        private bool Matches(MultilayerPaletteColor color) =>
+            _search.Length == 0 || color.Name.Contains(_search, StringComparison.OrdinalIgnoreCase);
+
+        private void SearchBox_OnTextChanged(object sender, TextChangedEventArgs e)
+        {
+            _search = SearchBox.Text.Trim();
+            SearchHint.SetCurrentValue(VisibilityProperty, SearchBox.Text.Length == 0 ? Visibility.Visible : Visibility.Collapsed);
+            Rebuild();
+        }
+
+        private static Border CreateEmptyCell(double size, Thickness margin)
         {
             var cell = new Border
             {
                 Width = size,
                 Height = size,
-                Margin = new Thickness(1),
+                Margin = margin,
                 BorderThickness = new Thickness(1),
                 Opacity = 0.35,
                 SnapsToDevicePixels = true,
@@ -232,7 +256,7 @@ namespace WolvenKit.Views.Editors
             return cell;
         }
 
-        private Border CreateSwatch(MultilayerPaletteColor color, bool isCurrent, double size = SwatchSize)
+        private Border CreateSwatch(MultilayerPaletteColor color, bool isCurrent, double size = SwatchSize, Thickness? margin = null)
         {
             var brush = new SolidColorBrush(MultilayerPalette.ToColor(color));
             brush.Freeze();
@@ -241,7 +265,8 @@ namespace WolvenKit.Views.Editors
             {
                 Width = size,
                 Height = size,
-                Margin = new Thickness(1),
+                Margin = margin ?? new Thickness(1),
+                Opacity = Matches(color) ? 1 : 0.15,
                 Background = brush,
                 BorderThickness = new Thickness(isCurrent ? 2 : 1),
                 Cursor = Cursors.Hand,

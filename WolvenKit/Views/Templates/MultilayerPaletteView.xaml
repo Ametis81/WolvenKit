@@ -15,18 +15,49 @@
             Header="Palette"
             IsExpanded="True">
             <StackPanel>
-                <!-- the same palette two ways; the choice holds for all layers and files of the session -->
-                <StackPanel Margin="0,0,0,4" Orientation="Horizontal">
+                <!--
+                    the same palette two ways (the choice holds for all layers and files of the session) on the left;
+                    search and the template copy on the right, like the search box of the file editor
+                -->
+                <DockPanel Margin="0,0,0,4" LastChildFill="False">
                     <RadioButton
                         x:Name="GridModeButton"
+                        VerticalAlignment="Center"
                         Content="Grid"
+                        DockPanel.Dock="Left"
                         ToolTip="Each colour group is a column, its variants below the base colour, scrolling sideways (like CDPR's material browser)" />
                     <RadioButton
                         x:Name="RowsModeButton"
                         Margin="12,0,0,0"
+                        VerticalAlignment="Center"
                         Content="Rows"
+                        DockPanel.Dock="Left"
                         ToolTip="Each colour group is a row, the rows wrapping down (like the Blender add-on)" />
-                </StackPanel>
+
+                    <!-- only for templates that aren't the project's own yet -->
+                    <Button
+                        x:Name="CopyTemplateButton"
+                        Margin="8,0,0,0"
+                        Content="Copy template to project..."
+                        DockPanel.Dock="Right"
+                        ToolTip="Copy the layer's template into the project under a path of its own and point the layer to the copy, to add or change colours without changing the game's template"
+                        Click="CopyTemplateButton_OnClick" />
+
+                    <Grid Width="160" DockPanel.Dock="Right">
+                        <TextBox
+                            x:Name="SearchBox"
+                            VerticalContentAlignment="Center"
+                            ToolTip="Dims the colours whose name doesn't contain the text (e.g. a code like 48e702)"
+                            TextChanged="SearchBox_OnTextChanged" />
+                        <TextBlock
+                            x:Name="SearchHint"
+                            Margin="6,0,0,0"
+                            VerticalAlignment="Center"
+                            Foreground="{DynamicResource ForegroundColor_Grey_Dark}"
+                            IsHitTestVisible="False"
+                            Text="Search colour..." />
+                    </Grid>
+                </DockPanel>
 
                 <!-- one column per group, base colour on top; Shift + wheel scrolls sideways -->
                 <ScrollViewer
@@ -62,14 +93,5 @@
             Foreground="{DynamicResource WolvenKitOrange}"
             TextWrapping="Wrap"
             Visibility="Collapsed" />
-
-        <!-- only for templates that aren't the project's own yet -->
-        <Button
-            x:Name="CopyTemplateButton"
-            Margin="{DynamicResource WolvenKitMarginTiny}"
-            HorizontalAlignment="Left"
-            Content="Copy template to project..."
-            ToolTip="Copy the layer's template into the project under a path of its own and point the layer to the copy, to add or change colours without changing the game's template"
-            Click="CopyTemplateButton_OnClick" />
     </StackPanel>
 </UserControl>
