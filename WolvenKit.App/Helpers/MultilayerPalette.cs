@@ -68,8 +68,9 @@ public static class MultilayerPalette
     /// step of their base colour (greys first, then the add-on's 8 hue steps), light to dark inside every block,
     /// and one row per variant suffix ("00cf56_69039f" → "69039f"), so a row is the same saturation / value step
     /// for every hue. The base colour ("_null") is the top row, the other suffixes follow from the most saturated
-    /// on average to the greyest. Templates whose suffixes aren't shared between groups (as many distinct
-    /// suffixes as twice the largest group, or more) keep each group's own order instead, top-aligned.
+    /// on average to the greyest. Rows are only for suffixes more than one group has: colours of their own
+    /// (a custom variant) follow below the rows, in the group's order. A template whose groups share no suffix
+    /// besides the base colour keeps each group's own order, top-aligned (no rows: RowSuffixes is empty).
     /// </summary>
     public static MultilayerPaletteGrid GroupIntoGrid(IEnumerable<MultilayerPaletteColor> colors)
     {
@@ -99,25 +100,36 @@ public static class MultilayerPalette
             order++;
         }
 
-        var largest = groups.Max(g => g.Count);
-        var aligned = stats.Count < largest * 2;
-        var suffixes = aligned
-            ? stats
-                .OrderBy(p => p.Key == "null" ? 0 : 1)
-                .ThenByDescending(p => p.Value.Sum / p.Value.Count)
-                .ThenBy(p => p.Value.First)
-                .Select(p => p.Key)
-                .ToList()
-            : [];
+        // a row only for suffixes more than one group has; one-off colours (a custom "00cf56_my red") would
+        // each open a row that is empty everywhere else, so they go below the rows, in the group's own order
+        var suffixes = stats
+            .Where(p => p.Value.Count > 1)
+            .OrderBy(p => p.Key == "null" ? 0 : 1)
+            .ThenByDescending(p => p.Value.Sum / p.Value.Count)
+            .ThenBy(p => p.Value.First)
+            .Select(p => p.Key)
+            .ToList();
+        if (suffixes.Count < 2)
+        {
+            // nothing shared besides the base colour: each group in its own order, top-aligned
+            suffixes = [];
+        }
+
+        var rowOf = suffixes.Select((sfx, i) => (sfx, i)).ToDictionary(p => p.sfx, p => p.i, StringComparer.Ordinal);
+        var extras = groups.Select(g => g.Where(c => !rowOf.ContainsKey(Suffix(c.Name))).ToList()).ToList();
+        var extraRows = extras.Max(e => e.Count);
 
         var columns = groups
-            .Select(group =>
+            .Select((group, i) =>
             {
                 var baseColor = group.FirstOrDefault(c => Suffix(c.Name) == "null");
                 var hue = baseColor is null ? int.MaxValue : StepSortKey(baseColor.R, baseColor.G, baseColor.B).Hue;
-                IReadOnlyList<MultilayerPaletteColor?> cells = aligned
-                    ? suffixes.Select(sfx => group.FirstOrDefault(c => Suffix(c.Name) == sfx)).ToList()
-                    : [.. group, .. Enumerable.Repeat<MultilayerPaletteColor?>(null, largest - group.Count)];
+                IReadOnlyList<MultilayerPaletteColor?> cells =
+                [
+                    .. suffixes.Select(sfx => group.FirstOrDefault(c => Suffix(c.Name) == sfx)),
+                    .. extras[i],
+                    .. Enumerable.Repeat<MultilayerPaletteColor?>(null, extraRows - extras[i].Count),
+                ];
                 return new MultilayerPaletteColumn(hue, cells);
             })
             .ToList();

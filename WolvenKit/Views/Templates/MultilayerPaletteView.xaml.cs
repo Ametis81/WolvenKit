@@ -184,11 +184,15 @@ namespace WolvenKit.Views.Editors
                     Orientation = Orientation.Vertical,
                     Margin = new Thickness(0, 0, gap, 0),
                 };
-                foreach (var color in grid.Columns[i].Cells)
+                var cells = grid.Columns[i].Cells;
+                for (var row = 0; row < cells.Count; row++)
                 {
+                    // a gap between the shared rows and the colours of the groups' own below them
+                    var margin = row == grid.RowSuffixes.Count && row > 0 ? s_extraRowsMargin : s_gridSwatchMargin;
+                    var color = cells[row];
                     if (color is null)
                     {
-                        column.Children.Add(CreateEmptyCell(GridSwatchSize, s_gridSwatchMargin));
+                        column.Children.Add(CreateEmptyCell(GridSwatchSize, margin));
                         continue;
                     }
 
@@ -203,7 +207,7 @@ namespace WolvenKit.Views.Editors
                         matchOffset = x;
                     }
 
-                    column.Children.Add(CreateSwatch(color, isCurrent, GridSwatchSize, s_gridSwatchMargin));
+                    column.Children.Add(CreateSwatch(color, isCurrent, GridSwatchSize, margin));
                 }
 
                 ColumnsPanel.Children.Add(column);
@@ -229,6 +233,9 @@ namespace WolvenKit.Views.Editors
 
         /// <summary>1 px between the swatches (both layouts).</summary>
         private static readonly Thickness s_gridSwatchMargin = new(0, 0, 1, 1);
+
+        /// <summary>Above the first colour below the shared rows of the grid (custom variants).</summary>
+        private static readonly Thickness s_extraRowsMargin = new(0, 6, 1, 1);
 
         private bool Matches(MultilayerPaletteColor color) =>
             _search.Length == 0 || color.Name.Contains(_search, StringComparison.OrdinalIgnoreCase);
