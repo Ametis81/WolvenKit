@@ -3,6 +3,8 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:hc="https://handyorg.github.io/handycontrol"
+    xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d"
     d:DesignWidth="320"
@@ -20,18 +22,25 @@
                     search and the template copy on the right, like the search box of the file editor
                 -->
                 <DockPanel Margin="0,0,0,4" LastChildFill="False">
-                    <RadioButton
-                        x:Name="GridModeButton"
+                    <!-- Grid ( O) Rows, a switch as the Mod Browser one of the asset browser -->
+                    <TextBlock
+                        Margin="0,0,6,0"
                         VerticalAlignment="Center"
-                        Content="Grid"
                         DockPanel.Dock="Left"
+                        Text="Grid"
                         ToolTip="Each colour group is a column, its variants below the base colour, scrolling sideways (like CDPR's material browser)" />
-                    <RadioButton
-                        x:Name="RowsModeButton"
-                        Margin="12,0,0,0"
+                    <mah:ToggleSwitch
+                        x:Name="ModeSwitch"
                         VerticalAlignment="Center"
-                        Content="Rows"
                         DockPanel.Dock="Left"
+                        OffContent=""
+                        OnContent=""
+                        ToolTip="Grid: colour groups as columns (like CDPR's material browser). Rows: colour groups as rows (like the Blender add-on)"
+                        Toggled="ModeSwitch_OnToggled" />
+                    <TextBlock
+                        VerticalAlignment="Center"
+                        DockPanel.Dock="Left"
+                        Text="Rows"
                         ToolTip="Each colour group is a row, the rows wrapping down (like the Blender add-on)" />
 
                     <!-- only for templates that aren't the project's own yet -->
@@ -43,20 +52,17 @@
                         ToolTip="Copy the layer's template into the project under a path of its own and point the layer to the copy, to add or change colours without changing the game's template"
                         Click="CopyTemplateButton_OnClick" />
 
-                    <Grid Width="160" DockPanel.Dock="Right">
-                        <TextBox
-                            x:Name="SearchBox"
-                            VerticalContentAlignment="Center"
-                            ToolTip="Dims the colours whose name doesn't contain the text (e.g. a code like 48e702)"
-                            TextChanged="SearchBox_OnTextChanged" />
-                        <TextBlock
-                            x:Name="SearchHint"
-                            Margin="6,0,0,0"
-                            VerticalAlignment="Center"
-                            Foreground="{DynamicResource ForegroundColor_Grey_Dark}"
-                            IsHitTestVisible="False"
-                            Text="Search colour..." />
-                    </Grid>
+                    <!-- live filter (TextChanged), the search bar of the asset browser -->
+                    <hc:SearchBar
+                        x:Name="SearchBox"
+                        Width="160"
+                        VerticalAlignment="Center"
+                        hc:InfoElement.Placeholder="Search colour, e.g. 48e702"
+                        hc:InfoElement.ShowClearButton="True"
+                        DockPanel.Dock="Right"
+                        Style="{StaticResource SearchBarPlus}"
+                        ToolTip="Dims the colours whose name doesn't contain the text"
+                        TextChanged="SearchBox_OnTextChanged" />
                 </DockPanel>
 
                 <!-- one column per group, base colour on top; Shift + wheel scrolls sideways -->

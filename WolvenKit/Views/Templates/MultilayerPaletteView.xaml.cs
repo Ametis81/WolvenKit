@@ -5,7 +5,6 @@ using System.Globalization;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
@@ -53,9 +52,8 @@ namespace WolvenKit.Views.Editors
             PaletteExpander.Expanded += (_, _) => s_isExpanded = true;
             PaletteExpander.Collapsed += (_, _) => s_isExpanded = false;
 
-            (s_gridMode ? GridModeButton : RowsModeButton).SetCurrentValue(ToggleButton.IsCheckedProperty, true);
-            GridModeButton.Checked += (_, _) => SetMode(true);
-            RowsModeButton.Checked += (_, _) => SetMode(false);
+            // on = Rows
+            ModeSwitch.SetCurrentValue(MahApps.Metro.Controls.ToggleSwitch.IsOnProperty, !s_gridMode);
 
             DataContextChanged += (_, _) => Subscribe();
             Loaded += (_, _) => Subscribe();
@@ -93,6 +91,8 @@ namespace WolvenKit.Views.Editors
                 Rebuild();
             }
         }
+
+        private void ModeSwitch_OnToggled(object sender, RoutedEventArgs e) => SetMode(!ModeSwitch.IsOn);
 
         private void SetMode(bool grid)
         {
@@ -236,7 +236,6 @@ namespace WolvenKit.Views.Editors
         private void SearchBox_OnTextChanged(object sender, TextChangedEventArgs e)
         {
             _search = SearchBox.Text.Trim();
-            SearchHint.SetCurrentValue(VisibilityProperty, SearchBox.Text.Length == 0 ? Visibility.Visible : Visibility.Collapsed);
             Rebuild();
         }
 
