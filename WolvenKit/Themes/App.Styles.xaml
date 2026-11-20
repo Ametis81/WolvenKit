@@ -452,6 +452,33 @@
         </Setter>
     </Style>
 
+    <!--
+        Context menu of text inputs (Cut / Copy / Paste). Without one of our own, WPF builds the system menu: white,
+        whatever the theme, with disabled items hard to read. x:Shared="False": each text box gets its own menu.
+    -->
+    <ContextMenu
+        x:Key="WolvenKitTextEditContextMenu"
+        x:Shared="False"
+        ItemContainerStyle="{StaticResource WolvenKitTabListMenuItemStyle}">
+        <ContextMenu.Template>
+            <ControlTemplate TargetType="{x:Type ContextMenu}">
+                <Border
+                    Padding="0,4"
+                    Background="{DynamicResource ContentBackgroundAlt3}"
+                    BorderBrush="{DynamicResource BorderAlt}"
+                    BorderThickness="1"
+                    SnapsToDevicePixels="True">
+                    <ItemsPresenter
+                        KeyboardNavigation.DirectionalNavigation="Cycle"
+                        TextElement.Foreground="{DynamicResource ContentForeground}" />
+                </Border>
+            </ControlTemplate>
+        </ContextMenu.Template>
+        <MenuItem Command="ApplicationCommands.Cut" />
+        <MenuItem Command="ApplicationCommands.Copy" />
+        <MenuItem Command="ApplicationCommands.Paste" />
+    </ContextMenu>
+
     <Style
         x:Key="WolvenKitTabControl"
         BasedOn="{StaticResource SyncfusionDocumentTabControlExtStyle}"
