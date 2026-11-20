@@ -18,10 +18,28 @@
             IsExpanded="True">
             <StackPanel>
                 <!--
-                    on the right, like the search box of the file editor: search, the switch between the two layouts
-                    of the palette (the choice holds for all layers and files of the session) and the template copy
+                    on the left the switch between the two layouts of the palette (the choice holds for all layers and
+                    files of the session); on the right, like the search box of the file editor, search and the template copy
                 -->
                 <DockPanel Margin="0,0,4,4" LastChildFill="False">
+                    <!-- "Grid / Rows ( O)" on the left: the switch as the Mod Browser one of the asset browser -->
+                    <StackPanel DockPanel.Dock="Left" Orientation="Horizontal">
+                        <TextBlock
+                            Margin="0,0,6,0"
+                            VerticalAlignment="Center"
+                            Text="Grid / Rows"
+                            ToolTip="Off, Grid: colour groups as columns, variants below the base colour, scrolling sideways (like CDPR's material browser). On, Rows: colour groups as rows wrapping down (like the Blender add-on)" />
+                        <!-- MinWidth 0: the style's minimum width would leave a wide gap after the switch -->
+                        <mah:ToggleSwitch
+                            x:Name="ModeSwitch"
+                            MinWidth="0"
+                            VerticalAlignment="Center"
+                            OffContent=""
+                            OnContent=""
+                            ToolTip="Off: Grid (like CDPR's material browser). On: Rows (like the Blender add-on)"
+                            Toggled="ModeSwitch_OnToggled" />
+                    </StackPanel>
+
                     <!-- only for templates that aren't the project's own yet -->
                     <Button
                         x:Name="CopyTemplateButton"
@@ -30,32 +48,6 @@
                         DockPanel.Dock="Right"
                         ToolTip="Copy the layer's template into the project under a path of its own and point the layer to the copy, to add or change colours without changing the game's template"
                         Click="CopyTemplateButton_OnClick" />
-
-                    <!-- Grid ( O) Rows, a switch as the Mod Browser one of the asset browser; before the copy button -->
-                    <StackPanel
-                        Margin="8,0,0,0"
-                        DockPanel.Dock="Right"
-                        Orientation="Horizontal">
-                        <TextBlock
-                            Margin="0,0,6,0"
-                            VerticalAlignment="Center"
-                            Text="Grid"
-                            ToolTip="Each colour group is a column, its variants below the base colour, scrolling sideways (like CDPR's material browser)" />
-                        <!-- MinWidth 0: the style's minimum width left a wide gap before "Rows" -->
-                        <mah:ToggleSwitch
-                            x:Name="ModeSwitch"
-                            MinWidth="0"
-                            Margin="0,0,6,0"
-                            VerticalAlignment="Center"
-                            OffContent=""
-                            OnContent=""
-                            ToolTip="Grid: colour groups as columns (like CDPR's material browser). Rows: colour groups as rows (like the Blender add-on)"
-                            Toggled="ModeSwitch_OnToggled" />
-                        <TextBlock
-                            VerticalAlignment="Center"
-                            Text="Rows"
-                            ToolTip="Each colour group is a row, the rows wrapping down (like the Blender add-on)" />
-                    </StackPanel>
 
                     <!-- live filter (TextChanged), the search bar of the asset browser -->
                     <hc:SearchBar
