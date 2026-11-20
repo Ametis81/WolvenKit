@@ -19,7 +19,7 @@
             <StackPanel>
                 <!--
                     on the left the switch between the two layouts of the palette (the choice holds for all layers and
-                    files of the session); on the right, like the search box of the file editor, search and the template copy
+                    files of the session); on the right the template copy, then search in the corner like the file editor's search box
                 -->
                 <DockPanel Margin="0,0,4,4" LastChildFill="False">
                     <!-- "Grid / Rows ( O)" on the left: the switch as the Mod Browser one of the asset browser -->
@@ -40,19 +40,11 @@
                             Toggled="ModeSwitch_OnToggled" />
                     </StackPanel>
 
-                    <!-- only for templates that aren't the project's own yet -->
-                    <Button
-                        x:Name="CopyTemplateButton"
-                        Margin="8,0,0,0"
-                        Content="Copy template to project..."
-                        DockPanel.Dock="Right"
-                        ToolTip="Copy the layer's template into the project under a path of its own and point the layer to the copy, to add or change colours without changing the game's template"
-                        Click="CopyTemplateButton_OnClick" />
-
-                    <!-- live filter (TextChanged), the search bar of the asset browser -->
+                    <!-- live filter (TextChanged), the search bar of the asset browser; in the corner, like the file editor's -->
                     <hc:SearchBar
                         x:Name="SearchBox"
                         Width="180"
+                        Margin="8,0,0,0"
                         VerticalAlignment="Center"
                         hc:InfoElement.Placeholder="Search, e.g. 48e702"
                         hc:InfoElement.ShowClearButton="True"
@@ -60,6 +52,14 @@
                         Style="{StaticResource SearchBarPlus}"
                         ToolTip="Dims the colours whose name doesn't contain the text"
                         TextChanged="SearchBox_OnTextChanged" />
+
+                    <!-- only for templates that aren't the project's own yet -->
+                    <Button
+                        x:Name="CopyTemplateButton"
+                        Content="Copy template to project..."
+                        DockPanel.Dock="Right"
+                        ToolTip="Copy the layer's template into the project under a path of its own and point the layer to the copy, to add or change colours without changing the game's template"
+                        Click="CopyTemplateButton_OnClick" />
                 </DockPanel>
 
                 <!-- one column per group, base colour on top; Shift + wheel scrolls sideways -->
