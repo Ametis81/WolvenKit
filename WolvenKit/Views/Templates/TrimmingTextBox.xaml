@@ -64,6 +64,9 @@
                                 <Style
                                     BasedOn="{StaticResource {x:Type Separator}}"
                                     TargetType="Separator">
+                                    <!--  a theme line like the menu's border, not the library's  -->
+                                    <Setter Property="Background" Value="{DynamicResource BorderAlt}" />
+                                    <Setter Property="Margin" Value="8,4" />
                                     <Style.Triggers>
                                         <MultiDataTrigger>
                                             <MultiDataTrigger.Conditions>
