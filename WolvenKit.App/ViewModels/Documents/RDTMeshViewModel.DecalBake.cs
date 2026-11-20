@@ -36,6 +36,8 @@ public partial class RDTMeshViewModel
     private const double DecalLeftoverShare = 0.05;        // left-over edge pieces searched wider
     private const double DecalLeftoverTolerance = 0.03;    // 3 cm
     private const double DecalDropShare = 0.01;            // stray triangles not drawn
+    private const double DecalRaisedHeight = 0.0015;     // 1.5 mm off the surface: relief, not paint
+    private const double DecalRaisedShare = 0.25;        // ... for a quarter of the triangles
     private const double DecalAgainstFacing = -0.5;      // facing more than 120 degrees apart
     private const double DecalUnderSlack = 0.0005;         // 0.5 mm below a surface still counts as on it
 
@@ -423,6 +425,20 @@ public partial class RDTMeshViewModel
                     }
 
                     return best;
+                }
+            }
+
+            // A raised decal (Kerry's neck wires: strips standing a few mm off the skin) is real
+            // relief, not paint: part of it baked flat into the skin and the rest drawn as its own
+            // mesh tears it apart. A flat decal hugs its surface; when a good share of this one
+            // stands off it, the decal is drawn whole as its own mesh.
+            if (bestFor.Count > 0)
+            {
+                // the score is distance + whole-number penalties
+                var raised = bestFor.Values.Count(x => x.Score - Math.Floor(x.Score) > DecalRaisedHeight);
+                if (raised > bestFor.Count * DecalRaisedShare)
+                {
+                    continue;
                 }
             }
 
