@@ -29,8 +29,11 @@
                         DockPanel.Dock="Left"
                         Text="Grid"
                         ToolTip="Each colour group is a column, its variants below the base colour, scrolling sideways (like CDPR's material browser)" />
+                    <!-- MinWidth 0: the style's minimum width left a wide gap before "Rows" -->
                     <mah:ToggleSwitch
                         x:Name="ModeSwitch"
+                        MinWidth="0"
+                        Margin="0,0,6,0"
                         VerticalAlignment="Center"
                         DockPanel.Dock="Left"
                         OffContent=""
@@ -55,9 +58,9 @@
                     <!-- live filter (TextChanged), the search bar of the asset browser -->
                     <hc:SearchBar
                         x:Name="SearchBox"
-                        Width="160"
+                        Width="180"
                         VerticalAlignment="Center"
-                        hc:InfoElement.Placeholder="Search colour, e.g. 48e702"
+                        hc:InfoElement.Placeholder="Search, e.g. 48e702"
                         hc:InfoElement.ShowClearButton="True"
                         DockPanel.Dock="Right"
                         Style="{StaticResource SearchBarPlus}"
