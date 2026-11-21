@@ -48,7 +48,7 @@ public struct MultilayerConstants
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
 public struct SurfaceExtraConstants
 {
-    public const int SizeInBytes = 3 * 16;
+    public const int SizeInBytes = 4 * 16;
 
     /// <summary>rgb: specular tint, w: 1 = use it.</summary>
     public SharpDX.Vector4 SpecularTint;
@@ -58,6 +58,9 @@ public struct SurfaceExtraConstants
 
     /// <summary>x: 1 = back faces shaded as glass backs, y: back reflection power, z: back opacity, w: alpha clip threshold (0 = off).</summary>
     public SharpDX.Vector4 GlassBack;
+
+    /// <summary>Hologram scanlines: x density (0 = off), y stretch (1 - ScanlineThickness), zw: unused.</summary>
+    public SharpDX.Vector4 Hologram;
 }
 
 /// <summary>
@@ -71,13 +74,16 @@ public sealed record SurfaceExtras(
     bool GlassBackFaces = false,
     float BackReflectionPower = 1f,
     float BackOpacity = 0f,
-    float AlphaClip = 0f)
+    float AlphaClip = 0f,
+    float ScanlineDensity = 0f,
+    float ScanlineStretch = 1f)
 {
     public SurfaceExtraConstants ToConstants() => new()
     {
         SpecularTint = SpecularTint is { } t ? new SharpDX.Vector4(t, 1f) : new SharpDX.Vector4(1f, 1f, 1f, 0f),
         Glass = new SharpDX.Vector4(EdgeTintExponent, VertexTint, 0f, 0f),
         GlassBack = new SharpDX.Vector4(GlassBackFaces ? 1f : 0f, BackReflectionPower, BackOpacity, AlphaClip),
+        Hologram = new SharpDX.Vector4(ScanlineDensity, ScanlineStretch, 0f, 0f),
     };
 }
 

@@ -4249,6 +4249,13 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
                 material.Values = new Dictionary<string, object>(original);
             }
 
+            // A hologram only needs its scanline texture (SetupHologramMaterial draws the rest).
+            if (IsHologram(material))
+            {
+                await BakeHologramScanlines(material, forceBake);
+                return;
+            }
+
             var (filename_bd, filename_bn, filename_rm) = GetMaterialFilePathsFromCache(material.Name);
             var emissivePng = Path.Combine(ISettingsManager.GetTemp_OBJPath(), material.Name + "_emissive.png");
             var depsPath = filename_bd + ".deps";
@@ -11846,19 +11853,54 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
 
         var opacity = FindMaterialValue(raw, "Opacity") is { } o ? Math.Clamp(ReadFloat(o), 0f, 1f) : 1f;
 
+        // Scanlines: the shader reads the Scanline texture from the emissive slot.
+        var scanlinePng = HologramScanlinePng(raw);
+        var hasScanlines = scanlinePng != null && File.Exists(scanlinePng);
+
         material.AlbedoMap = null;
         material.NormalMap = null;
         material.RoughnessMetallicMap = null;
-        material.EmissiveMap = null;
+        material.EmissiveMap = hasScanlines ? GetOrCreateTexture(scanlinePng!) : null;
         material.RenderAlbedoMap = false;
         material.RenderNormalMap = false;
         material.RenderRoughnessMetallicMap = false;
-        material.RenderEmissiveMap = false;
+        material.RenderEmissiveMap = hasScanlines;
         material.RenderEnvironmentMap = false;
-        material.AlbedoColor = new SharpDX.Color4(0f, 0f, 0f, 0.6f * opacity);
+        if (material is MultilayerPBRMaterial shaderMaterial)
+        {
+            var thickness = Math.Clamp(FindMaterialFloat(raw, "ScanlineThickness") ?? -0.578947f, -4f, 1f);
+            shaderMaterial.Extras = new SurfaceExtras(
+                ScanlineDensity: hasScanlines ? Math.Max(0f, FindMaterialFloat(raw, "OpaqueScanlineDensity") ?? 400f) : 0f,
+                ScanlineStretch: 1f - thickness);
+        }
+
+        material.AlbedoColor = new SharpDX.Color4(0f, 0f, 0f, (hasScanlines ? 0.85f : 0.6f) * opacity);
         material.EmissiveColor = glow;
         material.MetallicFactor = 0f;
         material.RoughnessFactor = 1f;
+    }
+
+    /// <summary>The PNG of a hologram's Scanline texture (named after its path), or null without one.</summary>
+    private string? HologramScanlinePng(Material material) =>
+        FindMaterialValue(material, "Scanline") is IRedRef { DepotPath: var path } && path != ResourcePath.Empty
+            ? Path.Combine(ISettingsManager.GetTemp_OBJPath(), $"hologram_scanline_{path.GetRedHash():X16}.png")
+            : null;
+
+    private async Task BakeHologramScanlines(Material material, bool force)
+    {
+        if (HologramScanlinePng(material) is not { } png || (!force && File.Exists(png)) ||
+            FindMaterialValue(material, "Scanline") is not IRedRef scanline)
+        {
+            return;
+        }
+
+        if (await LoadTextureAsBitmap(scanline.DepotPath) is { } bmp)
+        {
+            using (bmp)
+            {
+                SavePngAtomic(bmp, png);
+            }
+        }
     }
 
     private string GetTemplateFileName(Material? material) =>
