@@ -170,7 +170,7 @@ namespace WolvenKit.Modkit.RED4.Animation
                 IsTrackConstant = isTrackConstant,
                 DataAddress = chunkDataAddress,
                 FallbackFrameIndices = new CArray<CUInt16>(fallbackIndices),
-                ExtraDataNames = new(),
+                ExtraDataNames = new CArray<CName>((data.ExtraDataNames ?? []).Select(_ => (CName)_).ToList()),
             };
 
             // Set buffer size in data address
