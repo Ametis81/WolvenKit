@@ -775,9 +775,9 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
 
             var appMaterials = new List<Material>();
 
-            foreach (var materialName in mmapp.ChunkMaterials)
+            foreach (var materialName in ChunkMaterialNames(data, appIndex))
             {
-                appMaterials.Add(ChunkMaterial(materials, materialName.ToString().NotNull(), data));
+                appMaterials.Add(ChunkMaterial(materials, materialName, data));
             }
 
             var appearance = new Appearance(mmapp.Name.ToString().NotNull());
@@ -1286,7 +1286,7 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
             var handle = mesh.Appearances[appIndex];
             if (handle.GetValue() is meshMeshAppearance mmApp)
             {
-                foreach (var m in mmApp.ChunkMaterials)
+                foreach (var m in ChunkMaterialNames(mesh, appIndex))
                 {
                     appMaterials.Add(ChunkMaterial(materials, m.ToString().NotNull(), mesh, meshPath));
                 }
@@ -1773,12 +1773,9 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
 
             // Mesh material preview in WolvenKit - safe material selection
             var chosenMatName = "default";
-            if (appearanceIndex >= 0 &&
-                appearanceIndex < cMesh.Appearances.Count &&
-                cMesh.Appearances[appearanceIndex].GetValue() is meshMeshAppearance meshApp &&
-                index < meshApp.ChunkMaterials.Count)
+            if (ChunkMaterialNames(cMesh, appearanceIndex) is { } chunkNames && index < chunkNames.Count)
             {
-                chosenMatName = meshApp.ChunkMaterials[index].ToString().NotNull();
+                chosenMatName = chunkNames[index];
             }
             else if (mesh.materialNames is { Length: > 0 } matNames)
             {
@@ -3727,9 +3724,10 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
             return materials.Values.ToList();
         }
 
-        foreach (var materialName in meshApp.ChunkMaterials)
+        var meshAppIndex = mesh.Appearances.Select(x => x?.Chunk).ToList().IndexOf(meshApp);
+        foreach (var materialName in ChunkMaterialNames(mesh, meshAppIndex))
         {
-            appMaterials.Add(ChunkMaterial(materials, materialName.ToString().NotNull(), mesh, meshPath));
+            appMaterials.Add(ChunkMaterial(materials, materialName, mesh, meshPath));
         }
 
         return appMaterials;
