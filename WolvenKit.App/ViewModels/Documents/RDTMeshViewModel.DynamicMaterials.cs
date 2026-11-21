@@ -46,7 +46,7 @@ public partial class RDTMeshViewModel
         var expanded = s_expandedChunkMaterials.GetValue(mesh, _ => new ExpandedChunkMaterials());
         lock (expanded)
         {
-            var structure = MeshStructure(mesh);
+            var structure = MeshStructure(mesh, null, null);
             if (expanded.Structure != structure)
             {
                 var copy = (CArray<CHandle<meshMeshAppearance>>)mesh.Appearances.DeepCopy();
