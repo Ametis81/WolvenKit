@@ -19,14 +19,14 @@ namespace WolvenKit.Modkit.RED4.Animation
 {
     internal static class Const
     {
-        // Current ceil *30 doesn't get every single one of the vanilla
-        // frame counts right, but neither did this.
-        //
         public const double FramesPerDurationSecondArtisanallyCrafted = 30.1846575;
 
         public const double FramesPerDurationSecond = 30.0;
+
+        // The game stores a frame at both ends of the clip: numFrames = duration * 30 + 1.
+        // Rounded, because duration * 30 can land just below or above the whole number in float.
         public static Func<double, uint> FramesToAccommodateDuration = (duration) =>
-             (uint)Math.Ceiling(duration * FramesPerDurationSecond);
+             (uint)Math.Round(duration * FramesPerDurationSecond) + 1;
 
         public const ushort RootJointIndex = 0;
 

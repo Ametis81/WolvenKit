@@ -517,10 +517,18 @@ namespace WolvenKit.Modkit.RED4
 
                 // TODO https://github.com/WolvenKit/WolvenKit/issues/1752 Full Entity Update Support (Model, Rig, Anims, Ent...)
                 //      For now we just use the rig data, but this should be updated properly.
-                var numJoints = Convert.ToUInt16(rig.BoneCount);
+                // Every rig bone is animated; the extra joints (syncTrajectory...) come after them
+                var jointsCountActual = Convert.ToUInt16(rig.BoneCount);
                 var numExtraJoints = extras.NumExtraJoints;
-                var jointsCountActual = Convert.ToUInt16(numJoints - numExtraJoints);
-                var numTracks = Convert.ToUInt16(rig.ReferenceTracks?.Length ?? 0);
+                var numJoints = Convert.ToUInt16(jointsCountActual + numExtraJoints);
+
+                // A clip can drive fewer tracks than the rig has: keep the count its keys use
+                var trackIndices = (extras.TrackKeys ?? []).Select(_ => (int)_.TrackIndex)
+                    .Concat((extras.ConstTrackKeys ?? []).Select(_ => (int)_.TrackIndex))
+                    .ToList();
+                var numTracks = trackIndices.Count > 0
+                    ? Convert.ToUInt16(trackIndices.Max() + 1)
+                    : Convert.ToUInt16(rig.ReferenceTracks?.Length ?? 0);
                 var numExtraTracks = extras.NumExtraTracks;
                 var tracksCountActual = Convert.ToUInt16(numTracks - numExtraTracks);
 

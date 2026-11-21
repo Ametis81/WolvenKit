@@ -67,8 +67,10 @@ namespace WolvenKit.Modkit.RED4.Animation
 
             var frameTime = duration / (frameCount - 1);
 
-            // SIMD alignment
-            var numJointsSimdAligned = (uint)((jointsCountActual + SimdBlockWidth - 1) & (~(SimdBlockWidth - 1)));
+            // SIMD alignment: the game stores a column for every joint, extra joints included,
+            // so the stride is NumJoints rounded up to the block width. Extra joint columns
+            // are written as identity / unit scale.
+            var numJointsSimdAligned = (uint)((numJoints + SimdBlockWidth - 1) & (~(SimdBlockWidth - 1)));
 
             // Determine quantization — use the original bit depth if available,
             // otherwise derive from the compression enum (0 = uncompressed, else 16-bit default)
@@ -576,6 +578,13 @@ namespace WolvenKit.Modkit.RED4.Animation
                             }
 
                             q = Quat.Normalize(q);
+
+                            // q and -q are the same rotation. Keep W >= 0 as the game does: with W < 0
+                            // the encoded components can exceed 1 and get clamped, bending the rotation.
+                            if (q.W < 0f)
+                            {
+                                q = Quat.Negate(q);
+                            }
 
                             // Inverse of decode: encode dropped-W
                             // Decode does: dotPr = x²+y²+z²; x *= sqrt(2-dotPr); W = 1-dotPr
