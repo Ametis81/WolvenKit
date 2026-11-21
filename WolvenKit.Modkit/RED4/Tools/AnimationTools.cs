@@ -495,8 +495,10 @@ namespace WolvenKit.Modkit.RED4
 
                             var localRotation = RQuaternionNormalize(chan.TargetNode.LocalTransform.Rotation);
 
+                            // Export wrote local * additive, so the local rotation comes off the left:
+                            // q / local would be local * additive * local⁻¹, the additive about a turned axis
                             var rotations = stripLocalFromAdditives
-                                ? rotationSampler.GetLinearKeys().Select(_ => (_.Key, RQuaternionNormalize(RQuaternionNormalize(_.Value) / localRotation))).ToDictionary()
+                                ? rotationSampler.GetLinearKeys().Select(_ => (_.Key, RQuaternionNormalize(System.Numerics.Quaternion.Inverse(localRotation) * RQuaternionNormalize(_.Value)))).ToDictionary()
                                 : rotationSampler.GetLinearKeys().Select(_ => (_.Key, RQuaternionNormalize(_.Value))).ToDictionary();
 
                             typedRotations.Add((ushort)jointIdx, rotations);
