@@ -28,6 +28,9 @@ namespace WolvenKit.Modkit.RED4.Animation
         public static Func<double, uint> FramesToAccommodateDuration = (duration) =>
              (uint)Math.Round(duration * FramesPerDurationSecond) + 1;
 
+        // A stored clip length is kept unless the glTF runs longer than it by more than this (seconds)
+        public const float DurationEpsilon = 0.0001f;
+
         public const ushort RootJointIndex = 0;
 
         public const bool GLTF_SAMPLER_LINEAR = true;
@@ -347,7 +350,11 @@ namespace WolvenKit.Modkit.RED4.Animation
         List<AnimTrackKeySerializable> TrackKeys,
         List<ushort> FallbackFrameIndices,
         AnimationOptimizationHints OptimizationHints,
-        List<AnimEventSerializable>? AnimEvents  // NEW — nullable for backwards compat
+        List<AnimEventSerializable>? AnimEvents,  // NEW — nullable for backwards compat
+        // The clip's own length: the last glTF key can come before the end of the clip.
+        // Optional, so files without them still import and older WolvenKit versions skip them.
+        float? Duration = null,
+        uint? NumFrames = null
     );
 
     namespace Deprecated

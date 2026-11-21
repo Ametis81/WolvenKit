@@ -295,6 +295,8 @@ namespace WolvenKit.Modkit.RED4
                         SimdQuantizationBits = bufferData.SimdQuantizationBits,
                     },
                     AnimEvents = SerializeAnimEvents(anim.Chunk),
+                    Duration = bufferData.Duration,
+                    NumFrames = bufferData.FrameCount,
                 };
 
                 // -.-
@@ -540,9 +542,20 @@ namespace WolvenKit.Modkit.RED4
 
                 // Currently SIMD not supported
 
+                // Clip length: the buffer stores it, it isn't derived from the keys (the editor takes
+                // numFrames from the import data). The last glTF key can come before the end of the
+                // clip (sparse compressed keys), so the exported length wins unless the glTF runs longer.
+                var duration = incomingAnim.Duration;
+                var frameCount = FramesToAccommodateDuration(duration);
+                if (extras.Duration is float storedDuration && storedDuration >= duration - DurationEpsilon)
+                {
+                    duration = storedDuration;
+                    frameCount = extras.NumFrames is uint storedFrames and > 0 ? storedFrames : FramesToAccommodateDuration(duration);
+                }
+
                 var incomingAnimData = new AnimationBufferData {
-                    Duration = incomingAnim.Duration,
-                    FrameCount = FramesToAccommodateDuration(incomingAnim.Duration),
+                    Duration = duration,
+                    FrameCount = frameCount,
                     Translations = keyframeTranslations[AnimationInterpolationMode.LINEAR],
                     ConstTranslations = keyframeTranslations[AnimationInterpolationMode.STEP],
                     Rotations = keyframeRotations[AnimationInterpolationMode.LINEAR],
