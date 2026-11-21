@@ -4191,6 +4191,8 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
                     FillFromExternal(mat, mesh, me);
                 }
             }
+
+            RefreshDynamicMaterials(mesh, meshPath);
         }
     }
 
