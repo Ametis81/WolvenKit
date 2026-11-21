@@ -446,11 +446,12 @@ namespace WolvenKit.Views.Documents
                     await vm.GenerateMaterialsForPreviewImageAsync();
                     // With a camera preset each appearance is shot from the preset's view (sized
                     // to that appearance); without one it is framed from the current direction.
+                    // "Camera view" images keep the camera as it is, zoom included.
                     if (vm.ActiveCameraPreset is { } iconPreset)
                     {
                         PlaceCameraPreset(iconPreset);
                     }
-                    else
+                    else if (!vm.KeepsCameraView)
                     {
                         FrameObject();
                     }
