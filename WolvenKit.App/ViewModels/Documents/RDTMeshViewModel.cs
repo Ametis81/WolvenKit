@@ -1839,6 +1839,12 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
             return;
         }
 
+        if (TryGetRawMaterial(sm.MaterialName, out var invisibleMat) && IsInvisibleMaterial(invisibleMat))
+        {
+            sm.IsTransparent = true;
+            return;
+        }
+
         if (TryGetRawMaterial(sm.MaterialName, out var holoMat) && IsHologram(holoMat))
         {
             // a glow seen through: blended, from both sides
@@ -2501,6 +2507,24 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
         material.UVTransform = layerTile is float t && t > 0f && Math.Abs(t - 1f) > 1e-4f
             ? new UVTransform(0f, t, t)
             : UVTransform.Identity;
+
+        // invisible.mt draws nothing, not even a shadow (blended at zero alpha, see ApplyRenderFlags)
+        if (IsInvisibleMaterial(classMat))
+        {
+            material.AlbedoMap = null;
+            material.NormalMap = null;
+            material.RoughnessMetallicMap = null;
+            material.EmissiveMap = null;
+            material.RenderAlbedoMap = false;
+            material.RenderNormalMap = false;
+            material.RenderRoughnessMetallicMap = false;
+            material.RenderEmissiveMap = false;
+            material.RenderEnvironmentMap = false;
+            material.RenderShadowMap = false;
+            material.AlbedoColor = new SharpDX.Color4(0f, 0f, 0f, 0f);
+            material.EmissiveColor = new SharpDX.Color4(0f, 0f, 0f, 0f);
+            return material;
+        }
 
         if (IsHologram(classMat))
         {
@@ -11823,6 +11847,9 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
                template.Contains("seams", StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>A material on invisible.mt (e.g. base\fx\_shaders\invisible.mt): it draws nothing.</summary>
+    private bool IsInvisibleMaterial(Material? material) =>
+        GetTemplateFileName(material).Equals("invisible", StringComparison.OrdinalIgnoreCase);
     /// <summary>hologram.mt, hologram_two_sided.mt, hologram_txaa.mt, hologram_v2.mt.</summary>
     private bool IsHologram(Material? material) =>
         GetTemplateFileName(material).StartsWith("hologram", StringComparison.OrdinalIgnoreCase);
