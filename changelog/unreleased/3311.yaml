@@ -1,0 +1,6 @@
+changes:
+    - type: "fixed"
+      packages: ["App", "CLI", "Nuget Packages"]
+      pr-number: 3311
+      author: "Ametis81"
+      description: "Spline root motion exports its keys in seconds, and a glTF import writes the root's keys only, so the clip exports again"
