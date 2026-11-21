@@ -1,0 +1,6 @@
+changes:
+    - type: "fixed"
+      packages: ["App", "CLI", "Nuget Packages"]
+      pr-number: 3312
+      author: "Ametis81"
+      description: "SIMD animation clips with extra joints (synced clips) export correctly instead of a collapsed skeleton"
