@@ -38,7 +38,9 @@ namespace WolvenKit.Modkit.RED4.Animation
     {
         private const int SimdBlockWidth = 4;
         private const float TranslationEpsilon = 0.0001f;
-        private const float TrackEpsilon = 0.00001f;
+        // AnimationBufferSimd::Initialize: CheckIfFloatStreamIsConstant compares the summed
+        // differences from the first value against FLT_EPSILON
+        private const float FloatStreamConstantEpsilon = 1.1920929e-07f;
 
         /// <summary>
         /// Encode animation data into a SIMD animation buffer and data chunk.
@@ -102,7 +104,8 @@ namespace WolvenKit.Modkit.RED4.Animation
             var isScaleConstant = ClassifyScalesConstant(in data, jointsCountActual, frameCount, frameTime);
 
             // --- Classify tracks ---
-            var isTrackConstant = ClassifyTracksConstant(in data);
+            var trackStream = BuildTrackStream(in data, frameCount, frameTime, numTracks);
+            var isTrackConstant = ClassifyTracksConstant(trackStream);
 
             // --- Resample all data to uniform frames ---
             var rotationsForFrame = ResampleRotations(in data, jointsCountActual, numJointsSimdAligned, frameCount, frameTime);
@@ -124,7 +127,7 @@ namespace WolvenKit.Modkit.RED4.Animation
             WriteScales(bw, scalesForFrame, constantScale, isScaleConstant, frameCount, numJointsSimdAligned, jointsCountActual);
 
             // 4. TRACKS
-            WriteTracks(bw, in data, isTrackConstant, frameCount, frameTime, numTracks);
+            WriteTracks(bw, trackStream, isTrackConstant, frameCount, numTracks);
 
             // 5. COPY TRANSLATIONS (static positions)
             foreach (var pos in copyPositions)
@@ -266,23 +269,90 @@ namespace WolvenKit.Modkit.RED4.Animation
             return true;
         }
 
-        private static bool ClassifyTracksConstant(in AnimationBufferData data)
+        /// <summary>
+        /// Like the game (CheckIfFloatStreamIsConstant in AnimationBufferSimd::Initialize): the tracks
+        /// are constant only when the whole stream, every track in every frame, equals its first
+        /// value. No tracks is not constant.
+        /// </summary>
+        private static bool ClassifyTracksConstant(float[] trackStream)
         {
-            // Track is constant if we only have constTrackKeys and no trackKeys
-            if (data.TrackKeys.Count == 0 && data.ConstTrackKeys.Count > 0)
+            if (trackStream.Length == 0)
             {
-                // Additionally verify all const tracks share the same value
-                var firstVal = data.ConstTrackKeys[0].Value;
-                return data.ConstTrackKeys.All(k => Math.Abs(k.Value - firstVal) < TrackEpsilon);
+                return false;
             }
 
-            // If there are no tracks at all, treat as constant
-            if (data.TrackKeys.Count == 0 && data.ConstTrackKeys.Count == 0)
+            var first = trackStream[0];
+            var sum = 0f;
+            for (var i = 1; i < trackStream.Length; i++)
             {
-                return true;
+                sum += Math.Abs(first - trackStream[i]);
             }
 
-            return false;
+            return sum < FloatStreamConstantEpsilon;
+        }
+
+        /// <summary>
+        /// Every track sampled at every frame, frame by frame: [frame0: track0..trackN-1, frame1: ...].
+        /// Keys are interpolated linearly and held before the first and after the last one; a track
+        /// with only a const key keeps that value, a track without keys is 0.
+        /// </summary>
+        private static float[] BuildTrackStream(in AnimationBufferData data, uint frameCount, float frameTime, ushort numTracks)
+        {
+            var stream = new float[frameCount * numTracks];
+            if (numTracks == 0)
+            {
+                return stream;
+            }
+
+            var keysByTrack = data.TrackKeys
+                .Where(k => k.TrackIndex < numTracks)
+                .GroupBy(k => k.TrackIndex)
+                .ToDictionary(g => g.Key, g => g.OrderBy(k => k.Time).ToList());
+
+            for (ushort t = 0; t < numTracks; t++)
+            {
+                var constValue = data.ConstTrackKeys.Where(k => k.TrackIndex == t).Select(k => (float?)k.Value).FirstOrDefault() ?? 0f;
+                keysByTrack.TryGetValue(t, out var keys);
+
+                for (uint f = 0; f < frameCount; f++)
+                {
+                    stream[f * numTracks + t] = keys is { Count: > 0 } ? SampleTrack(keys, f * frameTime) : constValue;
+                }
+            }
+
+            return stream;
+        }
+
+        private static float SampleTrack(List<AnimTrackKeySerializable> keys, float time)
+        {
+            // Half a millisecond of slack: frame times and key times come through float seconds
+            const float slack = 0.0005f;
+
+            if (time <= keys[0].Time + slack)
+            {
+                return keys[0].Value;
+            }
+
+            if (time >= keys[^1].Time - slack)
+            {
+                return keys[^1].Value;
+            }
+
+            for (var i = 0; i < keys.Count - 1; i++)
+            {
+                var (a, b) = (keys[i], keys[i + 1]);
+                if (time <= b.Time + slack)
+                {
+                    if (time >= b.Time - slack || b.Time - a.Time <= slack)
+                    {
+                        return b.Value;
+                    }
+
+                    return a.Value + (b.Value - a.Value) * ((time - a.Time) / (b.Time - a.Time));
+                }
+            }
+
+            return keys[^1].Value;
         }
 
         #endregion Classification
@@ -753,8 +823,8 @@ namespace WolvenKit.Modkit.RED4.Animation
         /// Write track data — constant or per-frame, 4-byte aligned.
         /// </summary>
         private static void WriteTracks(
-            BinaryWriter bw, in AnimationBufferData data,
-            bool isTrackConstant, uint frameCount, float frameTime, ushort numTracks)
+            BinaryWriter bw, float[] trackStream,
+            bool isTrackConstant, uint frameCount, ushort numTracks)
         {
             if (numTracks == 0)
             {
@@ -763,50 +833,23 @@ namespace WolvenKit.Modkit.RED4.Animation
 
             if (isTrackConstant)
             {
-                // Single float for all tracks
-                var value = data.ConstTrackKeys.Count > 0 ? data.ConstTrackKeys[0].Value : 0f;
-                bw.Write(value);
+                // The game keeps the first value of the stream
+                bw.Write(trackStream[0]);
+                return;
             }
-            else
+
+            // Per frame, every track, padded to a multiple of 4
+            var paddingCount = (uint)(((numTracks + 3) & (~3)) - numTracks);
+            for (uint f = 0; f < frameCount; f++)
             {
-                // Per-frame, per-track, 4-byte aligned
-                var numTracks4Aligned = (uint)((numTracks + 3) & (~3));
-                var paddingCount = numTracks4Aligned - numTracks;
-
-                // Build a lookup: (frame, trackIdx) → value
-                // Merge const tracks (same value every frame) and variable tracks
-                var trackValues = new Dictionary<(uint frame, ushort track), float>();
-
-                // Fill const values for all frames
-                foreach (var ck in data.ConstTrackKeys)
+                for (ushort t = 0; t < numTracks; t++)
                 {
-                    for (uint f = 0; f < frameCount; f++)
-                    {
-                        trackValues[(f, ck.TrackIndex)] = ck.Value;
-                    }
+                    bw.Write(trackStream[f * numTracks + t]);
                 }
 
-                // Fill/override with variable track values (find nearest frame)
-                foreach (var tk in data.TrackKeys)
+                for (uint p = 0; p < paddingCount; p++)
                 {
-                    var frame = (uint)Math.Round(tk.Time / frameTime);
-                    frame = Math.Clamp(frame, 0, frameCount - 1);
-                    trackValues[(frame, tk.TrackIndex)] = tk.Value;
-                }
-
-                // Write
-                for (uint f = 0; f < frameCount; f++)
-                {
-                    for (ushort t = 0; t < numTracks; t++)
-                    {
-                        var value = trackValues.GetValueOrDefault((f, t), 0f);
-                        bw.Write(value);
-                    }
-                    // Padding
-                    for (uint p = 0; p < paddingCount; p++)
-                    {
-                        bw.Write(0f);
-                    }
+                    bw.Write(0f);
                 }
             }
         }
