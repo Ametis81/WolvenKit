@@ -3582,24 +3582,8 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
     /// which is what the editor shows and edits, so unsaved edits in the open mesh reach
     /// the preview; then the raw buffer and the preload list (older files).
     /// </summary>
-    private static CMaterialInstance? GetLocalMaterialInstance(CMesh mesh, int index)
-    {
-        if (index < 0)
-            return null;
-
-        if (mesh.LocalMaterialBuffer?.Materials is { } edited && index < edited.Count &&
-            edited[index] is CMaterialInstance fromEditor)
-            return fromEditor;
-
-        if (mesh.LocalMaterialBuffer?.RawData?.Buffer.Data is CR2WList raw && index < raw.Files.Count &&
-            raw.Files[index].RootChunk is CMaterialInstance fromRaw)
-            return fromRaw;
-
-        if (index < mesh.PreloadLocalMaterialInstances.Count)
-            return mesh.PreloadLocalMaterialInstances[index]?.GetValue() as CMaterialInstance;
-
-        return null;
-    }
+    private static CMaterialInstance? GetLocalMaterialInstance(CMesh mesh, int index) =>
+        MeshMaterialLists.GetLocalMaterial(mesh, index) as CMaterialInstance;
 
     /// <summary>
     /// Depot-relative path of the open document (e.g. base\...\x.mesh): project files are
@@ -3624,74 +3608,41 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
 
     private void FillFromExternal(Material material, CMesh mesh, CMeshMaterialEntry me)
     {
-        // Check externalMaterials
-        if (me.Index >= 0 && me.Index < mesh.ExternalMaterials.Count)
+        var path = MeshMaterialLists.GetExternalMaterialPath(mesh, me.Index);
+        var root = path != ResourcePath.Empty ? GetProjectOrDepotFile(path)?.RootChunk : null;
+        if (root is CMaterialInstance instance)
         {
-            var extRef = mesh.ExternalMaterials[me.Index];
-            var extFile = GetProjectOrDepotFile(extRef.DepotPath);
-            if (extFile?.RootChunk is CMaterialInstance extInst)
+            material.Instance = instance;
+            foreach (var pair in instance.Values)
             {
-                material.Instance = extInst;
-                foreach (var pair in extInst.Values)
-                {
-                    var k = pair.Key.ToString().NotNull();
-                    material.Values[k] = pair.Value;
-                }
-                return;
+                var k = pair.Key.ToString().NotNull();
+                material.Values[k] = pair.Value;
             }
-        }
-
-        // Check preloadExternalMaterials
-        if (mesh.PreloadExternalMaterials != null &&
-            me.Index >= 0 && me.Index < mesh.PreloadExternalMaterials.Count)
-        {
-            var preRef = mesh.PreloadExternalMaterials[me.Index];
-            var preFile = GetProjectOrDepotFile(preRef.DepotPath);
-            if (preFile?.RootChunk is CMaterialInstance preInst)
-            {
-                material.Instance = preInst;
-                foreach (var pair in preInst.Values)
-                {
-                    var k = pair.Key.ToString().NotNull();
-                    material.Values[k] = pair.Value;
-                }
-                return;
-            }
+            return;
         }
 
         // A mesh may point straight at a material template (.mt / .remt) instead of an instance:
         // that is valid, the template's defaults apply. Treat it as an instance without values
         // whose base is the template, so the base-material chain reads the defaults.
-        // (ExternalMaterials are async references, PreloadExternalMaterials plain ones: compare paths.)
-        var templatePath = me.Index >= 0 && me.Index < mesh.ExternalMaterials.Count
-            ? mesh.ExternalMaterials[me.Index].DepotPath
-            : mesh.PreloadExternalMaterials != null && me.Index >= 0 && me.Index < mesh.PreloadExternalMaterials.Count
-                ? mesh.PreloadExternalMaterials[me.Index].DepotPath
-                : ResourcePath.Empty;
-        if (templatePath != ResourcePath.Empty &&
-            GetProjectOrDepotFile(templatePath)?.RootChunk is CMaterialTemplate)
+        if (root is CMaterialTemplate)
         {
             material.Instance = new CMaterialInstance
             {
-                BaseMaterial = new CResourceReference<IMaterial>(templatePath)
+                BaseMaterial = new CResourceReference<IMaterial>(path)
             };
             return;
         }
 
         var label = SubmeshComponent.StripMeshPrefix(material.Name) ?? material.Name;
-        var extPath = me.Index >= 0 && me.Index < mesh.ExternalMaterials.Count
-            ? mesh.ExternalMaterials[me.Index].DepotPath
-            : mesh.PreloadExternalMaterials != null && me.Index >= 0 && me.Index < mesh.PreloadExternalMaterials.Count
-                ? mesh.PreloadExternalMaterials[me.Index].DepotPath
-                : ResourcePath.Empty;
-        if (extPath != ResourcePath.Empty)
+        if (path != ResourcePath.Empty)
         {
-            WarnMissingFile("material", extPath, label);
+            WarnMissingFile("material", path, label);
         }
         else
         {
+            var lists = MeshMaterialLists.HasPreloadMaterials(mesh) ? "preloadExternalMaterials" : "externalMaterials";
             Parent?.GetLoggerService()?.Warning(
-                $"[Preview] {label}: external material index {me.Index} is outside externalMaterials ({mesh.ExternalMaterials.Count}) and preloadExternalMaterials ({mesh.PreloadExternalMaterials?.Count ?? 0})");
+                $"[Preview] {label}: external material index {me.Index} is outside {lists} ({MeshMaterialLists.GetExternalMaterials(mesh).Count})");
         }
     }
 
@@ -6110,13 +6061,9 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
                         }
                     }
 
-                    if (matIndex >= 0 && meshData.LocalMaterialBuffer?.Materials != null &&
-                        matIndex < meshData.LocalMaterialBuffer.Materials.Count)
+                    if (GetLocalMaterialInstance(meshData, matIndex) is { } localMi)
                     {
-                        if (meshData.LocalMaterialBuffer.Materials[matIndex] is CMaterialInstance localMi)
-                        {
-                            material.Instance = localMi;
-                        }
+                        material.Instance = localMi;
                     }
                 }
 
