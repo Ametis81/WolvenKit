@@ -4185,7 +4185,7 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
                 for (var i = 0; i < ordered.Count; i++)
                 {
                     var (name, m) = ordered[i];
-                    MaterialsProgressText = $"Generating materials {i + 1} / {ordered.Count}: {name}";
+                    MaterialsProgressText = $"Generating materials {i + 1} / {ordered.Count}: {MaterialDisplayName(name)}";
                     var materialWatch = System.Diagnostics.Stopwatch.StartNew();
                     await LoadMaterial(m, bakeMax, forceBake);
                     logger?.Debug($"[Preview] material {i + 1} / {ordered.Count} '{name}': {materialWatch.ElapsedMilliseconds} ms");
