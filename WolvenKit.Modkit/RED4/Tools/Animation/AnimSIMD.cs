@@ -345,6 +345,43 @@ namespace WolvenKit.Modkit.RED4.Animation
                 jointWiseScales.Add(jointIdx, scales);
             }
 
+            // Extra joints (syncTrajectory...) after the rig bones: the buffer stores a rotation for
+            // each of them every frame, a translation only when one is listed in the eval/copy indices,
+            // and their own scale only when scales are stored per frame.
+            var hasTranslation = new HashSet<int>(evalIndices.Where(_ => _ >= 0).Select(_ => (int)_).Concat(copyIndices.Select(_ => (int)_)));
+
+            for (var jointIdx = jointsCountActual; jointIdx < animBufSimd.NumJoints; jointIdx++)
+            {
+                var rotations = new RotationsAtTimes();
+                var translations = new TranslationsAtTimes();
+                var scales = new ScalesAtTimes();
+
+                for (var frameIdx = 0; frameIdx < frameCount; frameIdx++)
+                {
+                    rotations.Add(frameIdx * frameTime, rotationsForFrame[frameIdx, jointIdx]);
+
+                    if (hasTranslation.Contains(jointIdx))
+                    {
+                        translations.Add(frameIdx * frameTime, positionsForFrame[frameIdx, jointIdx]);
+                    }
+
+                    if (!animBufSimd.IsScaleConstant)
+                    {
+                        scales.Add(frameIdx * frameTime, scalesForFrame[frameIdx, jointIdx]);
+                    }
+                }
+
+                jointWiseRotations.Add(jointIdx, rotations);
+                if (translations.Count > 0)
+                {
+                    jointWiseTranslations.Add(jointIdx, translations);
+                }
+                if (scales.Count > 0)
+                {
+                    jointWiseScales.Add(jointIdx, scales);
+                }
+            }
+
             result = new AnimationBufferData {
                 Duration = animBufSimd.Duration,
                 FrameCount = animBufSimd.NumFrames,
@@ -369,6 +406,7 @@ namespace WolvenKit.Modkit.RED4.Animation
                     ? AnimationCompression.QuaternionAsFixed3x16bit
                     : AnimationCompression.Uncompressed,
                 SimdQuantizationBits = animBufSimd.QuantizationBits,
+                ExtraDataNames = animBufSimd.ExtraDataNames?.Select(_ => _.GetResolvedText() ?? "").ToList(),
             };
         }
     }

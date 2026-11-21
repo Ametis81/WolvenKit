@@ -167,7 +167,8 @@ namespace WolvenKit.Modkit.RED4.Animation
                 CompressionUsed =
                     animBuf.HasRawRotations
                     ? AnimationCompression.Uncompressed
-                    : AnimationCompression.QuaternionAsFixed3x16bit
+                    : AnimationCompression.QuaternionAsFixed3x16bit,
+                ExtraDataNames = animBuf.ExtraDataNames?.Select(_ => _.GetResolvedText() ?? "").ToList(),
             };
         }
 
@@ -181,7 +182,8 @@ namespace WolvenKit.Modkit.RED4.Animation
 
             var rotationCompressionAllowed = incomingAnimBufferData.CompressionUsed != AnimationCompression.Uncompressed;
 
-            for (ushort jointIdx = 0; jointIdx < incomingAnimBufferData.JointsCountActual; ++jointIdx)
+            // Rig bones first, then the extra joints (syncTrajectory...) after them
+            for (ushort jointIdx = 0; jointIdx < incomingAnimBufferData.NumJoints; ++jointIdx)
             {
                 // Const (non-interpolated) keyframes are all similarly encoded, S, R and T
                 
@@ -269,6 +271,7 @@ namespace WolvenKit.Modkit.RED4.Animation
                 HasRawRotations = !rotationCompressionAllowed,
 
                 FallbackFrameIndices = new CArray<CUInt16>(fallbackIndices),
+                ExtraDataNames = new CArray<CName>((incomingAnimBufferData.ExtraDataNames ?? []).Select(_ => (CName)_).ToList()),
 
                 DataAddress = chunkDataAddress,
 

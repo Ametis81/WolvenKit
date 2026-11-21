@@ -274,7 +274,28 @@ namespace WolvenKit.Modkit.RED4.Animation
         ushort TracksCountActual,
         bool IsSimd,
         AnimationCompression CompressionUsed,
-        ushort SimdQuantizationBits = 0  // Original quantization bit depth from SIMD buffer (0 = uncompressed float32)
+        ushort SimdQuantizationBits = 0,  // Original quantization bit depth from SIMD buffer (0 = uncompressed float32)
+        List<string>? ExtraDataNames = null  // Names of the extra joints' data (syncTrajectory...), stored after the rig bones
+    );
+
+    // One key of an extra joint, in the same glTF space as the joint channels:
+    // translation and scale are [x, y, z], rotation is [x, y, z, w].
+    internal readonly record struct ExtraJointKeySerializable(
+        float Time,
+        float[] Value
+    );
+
+    // Keys of one extra joint (syncTrajectory...). Extra joints are not rig bones, so they
+    // have no glTF node and travel in the extras. ExtraIndex 0 is the first one after the rig bones.
+    // The Const* lists are step (non-interpolated) keys, like a STEP glTF sampler.
+    internal readonly record struct ExtraJointSerializable(
+        byte ExtraIndex,
+        List<ExtraJointKeySerializable>? Translations,
+        List<ExtraJointKeySerializable>? Rotations,
+        List<ExtraJointKeySerializable>? Scales,
+        List<ExtraJointKeySerializable>? ConstTranslations,
+        List<ExtraJointKeySerializable>? ConstRotations,
+        List<ExtraJointKeySerializable>? ConstScales
     );
 
     internal readonly record struct AnimEventSerializable(
@@ -354,7 +375,9 @@ namespace WolvenKit.Modkit.RED4.Animation
         // The clip's own length: the last glTF key can come before the end of the clip.
         // Optional, so files without them still import and older WolvenKit versions skip them.
         float? Duration = null,
-        uint? NumFrames = null
+        uint? NumFrames = null,
+        List<string>? ExtraDataNames = null,
+        List<ExtraJointSerializable>? ExtraJoints = null
     );
 
     namespace Deprecated

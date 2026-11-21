@@ -297,6 +297,8 @@ namespace WolvenKit.Modkit.RED4
                     AnimEvents = SerializeAnimEvents(anim.Chunk),
                     Duration = bufferData.Duration,
                     NumFrames = bufferData.FrameCount,
+                    ExtraDataNames = bufferData.ExtraDataNames is { Count: > 0 } ? bufferData.ExtraDataNames : null,
+                    ExtraJoints = AnimExtraJoints.ToSerializable(in bufferData),
                 };
 
                 // -.-
@@ -544,6 +546,14 @@ namespace WolvenKit.Modkit.RED4
                 var numExtraTracks = extras.NumExtraTracks;
                 var tracksCountActual = Convert.ToUInt16(numTracks - numExtraTracks);
 
+                // Extra joints have no glTF node, their keys come back from the extras
+                AnimExtraJoints.AddToKeyframes(
+                    extras.ExtraJoints, jointsCountActual, numExtraJoints,
+                    keyframeTranslations[AnimationInterpolationMode.LINEAR], keyframeTranslations[AnimationInterpolationMode.STEP],
+                    keyframeRotations[AnimationInterpolationMode.LINEAR], keyframeRotations[AnimationInterpolationMode.STEP],
+                    keyframeScales[AnimationInterpolationMode.LINEAR], keyframeScales[AnimationInterpolationMode.STEP],
+                    incomingAnim.Name, _loggerService);
+
                 // Have all the raw data in hand now, let's mangle it into CR2W
 
                 // For now just dump the data always into `AnimationDataChunk`s, it seems
@@ -584,6 +594,7 @@ namespace WolvenKit.Modkit.RED4
                     IsSimd = extras.OptimizationHints.PreferSIMD && !importArgs.ForceCompressedEncoding,
                     CompressionUsed = extras.OptimizationHints.MaxRotationCompression,
                     SimdQuantizationBits = extras.OptimizationHints.SimdQuantizationBits,
+                    ExtraDataNames = extras.ExtraDataNames,
                 };
 
                 // Backfill from original where we must, for now

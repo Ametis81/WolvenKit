@@ -70,8 +70,8 @@ namespace WolvenKit.Modkit.RED4.Animation
             var frameTime = duration / (frameCount - 1);
 
             // SIMD alignment: the game stores a column for every joint, extra joints included,
-            // so the stride is NumJoints rounded up to the block width. Extra joint columns
-            // are written as identity / unit scale.
+            // so the stride is NumJoints rounded up to the block width. Extra joints without
+            // keys of their own are written as identity / unit scale.
             var numJointsSimdAligned = (uint)((numJoints + SimdBlockWidth - 1) & (~(SimdBlockWidth - 1)));
 
             // Determine quantization — use the original bit depth if available,
@@ -101,16 +101,16 @@ namespace WolvenKit.Modkit.RED4.Animation
             }
 
             // --- Classify scales ---
-            var isScaleConstant = ClassifyScalesConstant(in data, jointsCountActual, frameCount, frameTime);
+            var isScaleConstant = ClassifyScalesConstant(in data, numJoints, frameCount, frameTime);
 
             // --- Classify tracks ---
             var trackStream = BuildTrackStream(in data, frameCount, frameTime, numTracks);
             var isTrackConstant = ClassifyTracksConstant(trackStream);
 
             // --- Resample all data to uniform frames ---
-            var rotationsForFrame = ResampleRotations(in data, jointsCountActual, numJointsSimdAligned, frameCount, frameTime);
+            var rotationsForFrame = ResampleRotations(in data, numJoints, numJointsSimdAligned, frameCount, frameTime);
             var evalPositionsForFrame = ResampleEvalTranslations(in data, evalJointIndices, evalIndicesPadded, numTranslationsToEvalAligned, frameCount, frameTime);
-            var scalesForFrame = isScaleConstant ? null : ResampleScales(in data, jointsCountActual, numJointsSimdAligned, frameCount, frameTime);
+            var scalesForFrame = isScaleConstant ? null : ResampleScales(in data, numJoints, numJointsSimdAligned, frameCount, frameTime);
             var constantScale = isScaleConstant ? GetConstantScale(in data, jointsCountActual) : Vec3.One;
 
             // --- Write binary buffer ---
@@ -118,13 +118,13 @@ namespace WolvenKit.Modkit.RED4.Animation
             using var bw = new BinaryWriter(ms);
 
             // 1. ROTATIONS
-            WriteRotations(bw, rotationsForFrame, frameCount, numJointsSimdAligned, jointsCountActual, isQuantized, quantizationBits);
+            WriteRotations(bw, rotationsForFrame, frameCount, numJointsSimdAligned, numJoints, isQuantized, quantizationBits);
 
             // 2. EVAL TRANSLATIONS (animated positions, SIMD-interleaved)
             WriteEvalTranslations(bw, evalPositionsForFrame, frameCount, numTranslationsToEvalAligned);
 
             // 3. SCALES
-            WriteScales(bw, scalesForFrame, constantScale, isScaleConstant, frameCount, numJointsSimdAligned, jointsCountActual);
+            WriteScales(bw, scalesForFrame, constantScale, isScaleConstant, frameCount, numJointsSimdAligned, numJoints);
 
             // 4. TRACKS
             WriteTracks(bw, trackStream, isTrackConstant, frameCount, numTracks);
@@ -178,7 +178,7 @@ namespace WolvenKit.Modkit.RED4.Animation
 
             newAnimDataChunk = new() { Buffer = new SerializationDeferredDataBuffer(bufferBytes) };
 
-            logger.Info($"Encoded SIMD animation: {frameCount} frames, {jointsCountActual} joints " +
+            logger.Info($"Encoded SIMD animation: {frameCount} frames, {jointsCountActual} joints + {numJoints - jointsCountActual} extra " +
                         $"({numTranslationsToEval} eval + {numTranslationsToCopy} copy translations), " +
                         $"{numTracks} tracks, quantization={quantizationBits}bit, " +
                         $"scaleConst={isScaleConstant}, trackConst={isTrackConstant}, " +
@@ -201,7 +201,8 @@ namespace WolvenKit.Modkit.RED4.Animation
             copyJointIndices = new List<ushort>();
             copyPositions = new List<Vec3>();
 
-            for (ushort j = 0; j < jointsCountActual; j++)
+            // Rig bones, then the extra joints (syncTrajectory...) after them
+            for (ushort j = 0; j < data.NumJoints; j++)
             {
                 // Merge linear + const translations for this joint
                 var linearTimes = data.Translations.GetValueOrDefault(j);
@@ -209,6 +210,12 @@ namespace WolvenKit.Modkit.RED4.Animation
 
                 if ((linearTimes == null || linearTimes.Count == 0) && (constTimes == null || constTimes.Count == 0))
                 {
+                    if (j >= jointsCountActual)
+                    {
+                        // The game lists no translation for an extra joint that has none
+                        continue;
+                    }
+
                     // No translation data at all — treat as static at origin
                     copyJointIndices.Add(j);
                     // Convert Vec3.Zero from glTF to RED4 coords
@@ -245,9 +252,9 @@ namespace WolvenKit.Modkit.RED4.Animation
             }
         }
 
-        private static bool ClassifyScalesConstant(in AnimationBufferData data, ushort jointsCountActual, uint frameCount, float frameTime)
+        private static bool ClassifyScalesConstant(in AnimationBufferData data, ushort jointCount, uint frameCount, float frameTime)
         {
-            for (ushort j = 0; j < jointsCountActual; j++)
+            for (ushort j = 0; j < jointCount; j++)
             {
                 var hasLinear = data.Scales.ContainsKey(j) && data.Scales[j].Count > 0;
                 var hasConst = data.ConstScales.ContainsKey(j) && data.ConstScales[j].Count > 0;
@@ -365,7 +372,7 @@ namespace WolvenKit.Modkit.RED4.Animation
         /// </summary>
         private static Quat[,] ResampleRotations(
             in AnimationBufferData data,
-            ushort jointsCountActual, uint numJointsSimdAligned,
+            ushort jointCount, uint numJointsSimdAligned,
             uint frameCount, float frameTime)
         {
             var result = new Quat[frameCount, numJointsSimdAligned];
@@ -379,7 +386,7 @@ namespace WolvenKit.Modkit.RED4.Animation
                 }
             }
 
-            for (ushort j = 0; j < jointsCountActual; j++)
+            for (ushort j = 0; j < jointCount; j++)
             {
                 for (uint f = 0; f < frameCount; f++)
                 {
@@ -446,7 +453,7 @@ namespace WolvenKit.Modkit.RED4.Animation
         /// </summary>
         private static Vec3[,] ResampleScales(
             in AnimationBufferData data,
-            ushort jointsCountActual, uint numJointsSimdAligned,
+            ushort jointCount, uint numJointsSimdAligned,
             uint frameCount, float frameTime)
         {
             var result = new Vec3[frameCount, numJointsSimdAligned];
@@ -460,7 +467,7 @@ namespace WolvenKit.Modkit.RED4.Animation
                 }
             }
 
-            for (ushort j = 0; j < jointsCountActual; j++)
+            for (ushort j = 0; j < jointCount; j++)
             {
                 for (uint f = 0; f < frameCount; f++)
                 {
@@ -619,7 +626,7 @@ namespace WolvenKit.Modkit.RED4.Animation
         /// </summary>
         private static void WriteRotations(
             BinaryWriter bw, Quat[,] rotationsForFrame,
-            uint frameCount, uint numJointsSimdAligned, ushort jointsCountActual,
+            uint frameCount, uint numJointsSimdAligned, ushort jointCount,
             bool isQuantized, ushort quantizationBits)
         {
             if (isQuantized)
@@ -638,7 +645,7 @@ namespace WolvenKit.Modkit.RED4.Animation
                         for (uint block = 0; block < SimdBlockWidth; block++)
                         {
                             Quat q;
-                            if (j + block < jointsCountActual)
+                            if (j + block < jointCount)
                             {
                                 q = rotationsForFrame[f, j + block];
                             }
@@ -734,25 +741,25 @@ namespace WolvenKit.Modkit.RED4.Animation
                         // Xs
                         for (uint block = 0; block < SimdBlockWidth; block++)
                         {
-                            var q = (j + block < jointsCountActual) ? rotationsForFrame[f, j + block] : Quat.Identity;
+                            var q = (j + block < jointCount) ? rotationsForFrame[f, j + block] : Quat.Identity;
                             bw.Write(q.X);
                         }
                         // Ys
                         for (uint block = 0; block < SimdBlockWidth; block++)
                         {
-                            var q = (j + block < jointsCountActual) ? rotationsForFrame[f, j + block] : Quat.Identity;
+                            var q = (j + block < jointCount) ? rotationsForFrame[f, j + block] : Quat.Identity;
                             bw.Write(q.Y);
                         }
                         // Zs
                         for (uint block = 0; block < SimdBlockWidth; block++)
                         {
-                            var q = (j + block < jointsCountActual) ? rotationsForFrame[f, j + block] : Quat.Identity;
+                            var q = (j + block < jointCount) ? rotationsForFrame[f, j + block] : Quat.Identity;
                             bw.Write(q.Z);
                         }
                         // Ws
                         for (uint block = 0; block < SimdBlockWidth; block++)
                         {
-                            var q = (j + block < jointsCountActual) ? rotationsForFrame[f, j + block] : Quat.Identity;
+                            var q = (j + block < jointCount) ? rotationsForFrame[f, j + block] : Quat.Identity;
                             bw.Write(q.W);
                         }
                     }
@@ -776,7 +783,7 @@ namespace WolvenKit.Modkit.RED4.Animation
         /// </summary>
         private static void WriteScales(
             BinaryWriter bw, Vec3[,]? scalesForFrame, Vec3 constantScale,
-            bool isScaleConstant, uint frameCount, uint numJointsSimdAligned, ushort jointsCountActual)
+            bool isScaleConstant, uint frameCount, uint numJointsSimdAligned, ushort jointCount)
         {
             if (isScaleConstant)
             {
@@ -799,19 +806,19 @@ namespace WolvenKit.Modkit.RED4.Animation
                         // X block
                         for (uint block = 0; block < SimdBlockWidth; block++)
                         {
-                            var s = (j + block < jointsCountActual) ? scalesForFrame![f, j + block] : Vec3.One;
+                            var s = (j + block < jointCount) ? scalesForFrame![f, j + block] : Vec3.One;
                             bw.Write(s.X);
                         }
                         // Y block
                         for (uint block = 0; block < SimdBlockWidth; block++)
                         {
-                            var s = (j + block < jointsCountActual) ? scalesForFrame![f, j + block] : Vec3.One;
+                            var s = (j + block < jointCount) ? scalesForFrame![f, j + block] : Vec3.One;
                             bw.Write(s.Y);
                         }
                         // Z block
                         for (uint block = 0; block < SimdBlockWidth; block++)
                         {
-                            var s = (j + block < jointsCountActual) ? scalesForFrame![f, j + block] : Vec3.One;
+                            var s = (j + block < jointCount) ? scalesForFrame![f, j + block] : Vec3.One;
                             bw.Write(s.Z);
                         }
                     }
