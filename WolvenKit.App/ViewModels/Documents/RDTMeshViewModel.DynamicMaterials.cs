@@ -57,11 +57,7 @@ public partial class RDTMeshViewModel
         else
         {
             // an external dynamic material: its .mi path holds {material}
-            var path = entry.Index >= 0 && entry.Index < mesh.ExternalMaterials.Count
-                ? mesh.ExternalMaterials[entry.Index].DepotPath
-                : mesh.PreloadExternalMaterials != null && entry.Index >= 0 && entry.Index < mesh.PreloadExternalMaterials.Count
-                    ? mesh.PreloadExternalMaterials[entry.Index].DepotPath
-                    : ResourcePath.Empty;
+            var path = MeshMaterialLists.GetExternalMaterialPath(mesh, entry.Index);
             var resolved = Substitute(path.GetResolvedText() ?? string.Empty);
             source = resolved.Length > 0 ? GetProjectOrDepotFile(resolved)?.RootChunk as CMaterialInstance : null;
             if (source == null && resolved.Length > 0)
