@@ -3633,6 +3633,12 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
             return;
         }
 
+        // An entry no chunk uses (a "----- merged from …" separator, a leftover) shows nothing.
+        if (!IsUsedByChunks(mesh, me.Name.GetResolvedText() ?? string.Empty))
+        {
+            return;
+        }
+
         var label = SubmeshComponent.StripMeshPrefix(material.Name) ?? material.Name;
         if (path != ResourcePath.Empty)
         {
@@ -3645,6 +3651,16 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
                 $"[Preview] {label}: external material index {me.Index} is outside {lists} ({MeshMaterialLists.GetExternalMaterials(mesh).Count})");
         }
     }
+
+    /// <summary>
+    /// Whether an appearance of the mesh draws a chunk with this material entry: by name, or a
+    /// dynamic entry "@neon" through its "red@neon" chunks.
+    /// </summary>
+    private static bool IsUsedByChunks(CMesh mesh, string entryName) =>
+        mesh.Appearances.Select(a => a?.Chunk).OfType<meshMeshAppearance>()
+            .SelectMany(a => a.ChunkMaterials)
+            .Select(c => c.GetResolvedText() ?? string.Empty)
+            .Any(c => c == entryName || (entryName.StartsWith('@') && c.EndsWith(entryName, StringComparison.Ordinal)));
 
     private Dictionary<string, Material> GetMaterialsFromMesh(CMesh mesh, string? meshPath = null)
     {
