@@ -236,7 +236,7 @@ public class CvmMaterialTools
             return;
         }
 
-        var keepExternal = GetExternalMaterials(mesh).Where((_, i) => localMatIdxList.Contains(i)).ToList();
+        var keepExternal = GetExternalMaterials(mesh).Where((_, i) => externalMatIdxList.Contains(i)).ToList();
 
         var usedMaterialDefinitions = mesh.MaterialEntries.Where(me =>
             (me.IsLocalInstance && localMatIdxList.Contains(me.Index)) ||
@@ -251,24 +251,15 @@ public class CvmMaterialTools
             return;
         }
 
-        // recreate material definition
+        // recreate material definition: the kept materials stay in their list order, so an entry's
+        // new index is the number of kept materials of its kind before its old one
+        var keptLocalIndices = localMatIdxList.Distinct().Order().ToList();
+        var keptExternalIndices = externalMatIdxList.Distinct().Order().ToList();
         mesh.MaterialEntries.Clear();
-        var localMaterialIdx = 0;
-        var externalMaterialIdx = 0;
-        for (var i = 0; i < usedMaterialDefinitions.Length; i++)
+        foreach (var t in usedMaterialDefinitions)
         {
-            var t = usedMaterialDefinitions[i];
-            if (t.IsLocalInstance)
-            {
-                t.Index = (CUInt16)localMaterialIdx;
-                localMaterialIdx += 1;
-            }
-            else
-            {
-                t.Index = (CUInt16)externalMaterialIdx;
-                externalMaterialIdx += 1;
-            }
-
+            var kept = t.IsLocalInstance ? keptLocalIndices : keptExternalIndices;
+            t.Index = (CUInt16)kept.IndexOf((int)t.Index);
             mesh.MaterialEntries.Add(t);
         }
 
