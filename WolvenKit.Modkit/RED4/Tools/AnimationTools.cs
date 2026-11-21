@@ -363,6 +363,14 @@ namespace WolvenKit.Modkit.RED4
 
             if (model.LogicalAnimations.Count < 1)
             {
+                // Some sets hold no clips, only fallback data (e.g. a cyberware rig's synced set):
+                // their export has no animations either, and there is nothing to import.
+                if (anims.Animations.Count == 0)
+                {
+                    _loggerService.Info($"{gltfFileName}: no animations, and the animset has none either. Nothing to import, the file is left as it is.");
+                    return true;
+                }
+
                 _loggerService.Error($"No animations found in {gltfFileName}!");
                 return false;
             }
