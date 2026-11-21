@@ -520,45 +520,58 @@ public partial class RDTMeshViewModel
         await GenerateMaterials(clearCache: false, refreshFromDisk: false);
     }
 
-    /// <summary>Asks for the folder of the per-appearance icons; null if cancelled or not confirmed.</summary>
-    public string? PickPreviewIconFolder(IReadOnlyList<string> appearanceNames)
+    /// <summary>The folder the icon dialog starts with: the last one used, else the project's raw folder.</summary>
+    public string GetPreviewIconFolder()
     {
-        string? rawDir = null;
+        if (s_previewImageFolder is { } last && Directory.Exists(last))
+        {
+            return last;
+        }
+
         try
         {
-            rawDir = Parent?.GetActiveProject()?.RawDirectory;
+            return Parent?.GetActiveProject()?.RawDirectory ?? string.Empty;
         }
         catch
         {
-            // no project
+            return string.Empty; // no project
         }
+    }
 
+    /// <summary>The folder picker of the icon dialog, starting at <paramref name="current"/>; null if cancelled.</summary>
+    public string? BrowsePreviewIconFolder(string? current, int appearanceCount)
+    {
         var dlg = new Microsoft.Win32.OpenFolderDialog
         {
-            Title = $"Save icons for {appearanceNames.Count} appearances ({PreviewImageSize.Width}x{PreviewImageSize.Height})",
+            Title = $"Save icons for {appearanceCount} appearances ({PreviewImageSize.Width}x{PreviewImageSize.Height})",
         };
 
-        var initial = s_previewImageFolder is { } last && Directory.Exists(last) ? last : rawDir;
+        var initial = !string.IsNullOrEmpty(current) && Directory.Exists(current) ? current : GetPreviewIconFolder();
         if (!string.IsNullOrEmpty(initial) && Directory.Exists(initial))
         {
             dlg.InitialDirectory = initial;
         }
 
-        if (dlg.ShowDialog() != true || string.IsNullOrEmpty(dlg.FolderName))
+        return dlg.ShowDialog() == true && !string.IsNullOrEmpty(dlg.FolderName) ? dlg.FolderName : null;
+    }
+
+    /// <summary>
+    /// Checks the folder of the per-appearance icons: created if missing, and asks before icon files
+    /// that are already there are overwritten. False if it can't be used or the overwrite isn't confirmed.
+    /// </summary>
+    public bool ConfirmPreviewIconFolder(string folder, IReadOnlyList<string> appearanceNames)
+    {
+        try
         {
-            return null;
+            Directory.CreateDirectory(folder);
+        }
+        catch (Exception ex)
+        {
+            ReportPreviewImageError($"the folder can't be used: {folder} ({ex.Message})");
+            return false;
         }
 
-        var folder = dlg.FolderName;
-        var existing = 0;
-        foreach (var name in appearanceNames)
-        {
-            if (File.Exists(GetPreviewIconFileName(folder, name)))
-            {
-                existing++;
-            }
-        }
-
+        var existing = appearanceNames.Count(name => File.Exists(GetPreviewIconFileName(folder, name)));
         if (existing > 0 &&
             System.Windows.MessageBox.Show(
                 $"{existing} of the {appearanceNames.Count} icon files already exist in\n{folder}\n\nOverwrite them?",
@@ -566,11 +579,11 @@ public partial class RDTMeshViewModel
                 System.Windows.MessageBoxButton.YesNo,
                 System.Windows.MessageBoxImage.Question) != System.Windows.MessageBoxResult.Yes)
         {
-            return null;
+            return false;
         }
 
         s_previewImageFolder = folder;
-        return folder;
+        return true;
     }
 
     // ---- Icon file names: <prefix><appearance><suffix>.png, remembered per file ----
