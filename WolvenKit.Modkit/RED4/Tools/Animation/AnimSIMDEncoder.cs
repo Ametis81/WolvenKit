@@ -710,11 +710,13 @@ namespace WolvenKit.Modkit.RED4.Animation
         {
             if (isScaleConstant)
             {
-                // 4 floats: X, Y, Z, padding
+                // The game keeps the first 4 floats of the scale stream (CheckIfFloatStreamIsConstant(..., 4)
+                // in AnimationBufferSimd::Initialize): one SIMD lane each, so all four hold the scale
+                // (vanilla buffers store 1, 1, 1, 1). A 0 in the last one would be a 0 scale lane.
                 bw.Write(constantScale.X);
-                bw.Write(constantScale.Y);
-                bw.Write(constantScale.Z);
-                bw.Write(0f); // padding to 4 floats (SIMD alignment)
+                bw.Write(constantScale.X);
+                bw.Write(constantScale.X);
+                bw.Write(constantScale.X);
             }
             else
             {
