@@ -277,7 +277,6 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
     {
         // Subscription stays: Load() after Unload would not re-subscribe.
         RollbackGeneratedData();
-        RememberMeshStructure();
 
         // Live material update only while the preview is shown (Load resumes it).
         PauseLiveMaterialUpdate();
@@ -702,6 +701,7 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
         {
             return;
         }
+        RememberMeshStructure();
         var materials = new Dictionary<string, Material>();
 
         // If there are no local materials defined that we can use to render the mesh, generate one
@@ -4024,6 +4024,12 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
     /// </param>
     private async Task GenerateMaterials(bool clearCache, bool refreshFromDisk = true, bool rebuildMaterials = false)
     {
+        if (!IsLoadingMaterials)
+        {
+            // the mesh may have changed in the editor while the preview was shown (toolbar actions)
+            RebuildMeshIfChanged();
+        }
+
         if (IsLoadingMaterials || SelectedAppearance == null)
         {
             if (SelectedAppearance == null)
