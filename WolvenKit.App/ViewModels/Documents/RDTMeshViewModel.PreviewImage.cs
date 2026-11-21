@@ -48,7 +48,8 @@ public partial class RDTMeshViewModel
 
     public PreviewImageOption PreviewImageFormat
     {
-        get => _previewImageFormat ??= PreviewImageFormats[5];
+        // the size of an inventory icon (clothing), the most common export
+        get => _previewImageFormat ??= PreviewImageFormats[0];
         set
         {
             if (SetProperty(ref _previewImageFormat, value))
