@@ -13,13 +13,13 @@ using HelixToolkit.Wpf.SharpDX;
 namespace WolvenKit.App.ViewModels.Documents.Multilayer;
 
 /// <summary>
-/// Contents of the HLSL <c>cbMultilayer</c> buffer: header (6 vectors) + 20 layers × 9 vectors.
+/// Contents of the HLSL <c>cbMultilayer</c> buffer: header (8 vectors) + 20 layers × 9 vectors.
 /// Layout is documented in the shader source.
 /// </summary>
 [InlineArray(FloatCount)]
 public struct MultilayerConstants
 {
-    public const int HeaderVectors = 6;
+    public const int HeaderVectors = 8;
     public const int FloatCount = (HeaderVectors + (MultilayerShader.MaxLayers * MultilayerShader.VectorsPerLayer)) * 4;
 
     /// <summary>Float index of the debug vector (header vector 2).</summary>
@@ -33,6 +33,9 @@ public struct MultilayerConstants
 
     /// <summary>Float index of the overlay flags (header vector 5): x = normals as RNM.</summary>
     public const int OverlayFlagsOffset = 20;
+
+    /// <summary>Float index of the clear coat vectors (header vectors 6 and 7).</summary>
+    public const int CoatOffset = 24;
     public const int SizeInBytes = FloatCount * sizeof(float);
 
     private float _element0;

@@ -64,6 +64,11 @@ cbuffer cbMultilayer : register(b11)
     float4 mlOverlayB;
     // x: 1 = normals blended as RNM.
     float4 mlOverlayFlags;
+    // Clear coat (multilayered_clear_coat.mt), an approximation: the coat tints the surface from
+    // mlCoatFwd (facing the view) to mlCoatSide (grazing), the mother-of-pearl shift.
+    // mlCoatFwd.w: 1 = coat on; mlCoatSide.w: Fresnel exponent of the shift
+    float4 mlCoatFwd;
+    float4 mlCoatSide;
     // Per layer, ML_VEC_PER_LAYER vectors:
     //  0: colorScale.rgb, opacity
     //  1: matTile, mbTile, offsetU, offsetV
@@ -478,6 +483,12 @@ float4 mlMain(MLVSOutput vsOut) : SV_Target
 
     float4 albedo = float4(input.cDiffuse.xyz * surf.albedo, 1);
     albedo = lerp(albedo, input.c, vertColorBlending);
+
+    if (mlCoatFwd.w > 0)
+    {
+        float grazing = pow(1 - saturate(dot(N, V)), max(mlCoatSide.w, 0.05));
+        albedo.rgb *= lerp(mlCoatFwd.rgb, mlCoatSide.rgb, grazing);
+    }
 
     // Material factors multiply the maps, as with the baked RM map.
     float3 RMA = float3(ConstantAO, ConstantRoughness * surf.roughness, ConstantMetallic * surf.metallic);
