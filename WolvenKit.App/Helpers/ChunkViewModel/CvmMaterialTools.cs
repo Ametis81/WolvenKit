@@ -618,15 +618,14 @@ public class CvmMaterialTools
 
             var baseMaterialPath = matInstance.BaseMaterial.DepotPath.GetResolvedText() ?? "";
 
-            var maxIndex = mesh.MaterialEntries.Where(m => m.IsLocalInstance.Equals(material.IsLocalInstance))
-                .Select(m => m.Index).Max();
-
             foreach (var newMatName in resolvedMatNames.Distinct())
             {
-                maxIndex += 1;
+                // the new instance is appended to the local list below: the entry points at that place,
+                // not past the highest index an entry uses (the list may hold more materials than that)
+                var newIndex = hasPreload ? mesh.PreloadLocalMaterialInstances.Count : mesh.LocalMaterialBuffer.Materials.Count;
                 mesh.MaterialEntries.Add(new CMeshMaterialEntry()
                 {
-                    Name = $"{matName}_{newMatName}", Index = maxIndex, IsLocalInstance = material.IsLocalInstance
+                    Name = $"{matName}_{newMatName}", Index = (CUInt16)newIndex, IsLocalInstance = true
                 });
 
                 var newMaterialInstance = new CMaterialInstance()
