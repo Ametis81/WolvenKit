@@ -2746,11 +2746,7 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
                     material.RenderEmissiveMap = false;
                 }
 
-                bool scaleBlack = false;
-                if (TryGetRawMaterial(name, out var scaleMat) &&
-                    scaleMat?.Values?.TryGetValue("BaseColorScale", out var scObj) == true &&
-                    scObj is Vector4 sc && sc.X < 0.05f && sc.Y < 0.05f && sc.Z < 0.05f)
-                    scaleBlack = true;
+                var scaleBlack = TryGetBaseColorScale(name, out var sc) && sc.X < 0.05f && sc.Y < 0.05f && sc.Z < 0.05f;
 
                 if (File.Exists(emissivePng))
                 {
@@ -2790,11 +2786,9 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
                 // scale is already multiplied into the PNG (see the BaseColor bake), so do not
                 // apply it a second time here. Otherwise use it as the tint.
                 var albedoColor = new SharpDX.Color4(0.5f, 0.5f, 0.5f, 1f);
-                if (TryGetRawMaterial(name, out var matScale) &&
-                    matScale?.Values?.TryGetValue("BaseColorScale", out var scaleObj) == true &&
-                    scaleObj is Vector4 v4)
+                if (TryGetRawMaterial(name, out var matScale) && TryGetBaseColorScale(matScale?.Values, out var v4))
                 {
-                    var scaleBakedIn = matScale.Values.TryGetValue("BaseColor", out var bcObj) &&
+                    var scaleBakedIn = matScale!.Values.TryGetValue("BaseColor", out var bcObj) &&
                                        bcObj is CResourceReference<ITexture>;
                     albedoColor = scaleBakedIn
                         ? new SharpDX.Color4(1f, 1f, 1f, v4.W)
@@ -7427,21 +7421,9 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
                         }
                     }
 
-                    // BaseColorScale
-                    if (albedoBmp != null && dictionary.TryGetValue("BaseColorScale", out var scaleObj))
+                    if (albedoBmp != null)
                     {
-                        float r = 1f, g = 1f, b = 1f;
-
-                        var scaleType = scaleObj.GetType().Name;
-
-                        if (scaleObj is Vector4 v4)
-                        {
-                            r = v4.X;
-                            g = v4.Y;
-                            b = v4.Z;
-                        }
-
-                        ApplyBaseColorScale(albedoBmp, r, g, b);
+                        ApplyBaseColorScale(albedoBmp, dictionary);
                     }
 
                     if (albedoBmp != null)
@@ -7649,11 +7631,8 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
                             bmpSource.Freeze();
                         using var bmp = BitmapSourceToBitmap(bmpSource);
 
-                        // Apply BaseColorScale (e.g. nails use 0,0,0 for black)
-                        if (dictionary.TryGetValue("BaseColorScale", out var scaleObj) && scaleObj is Vector4 v4)
-                        {
-                            ApplyBaseColorScale(bmp, v4.X, v4.Y, v4.Z);
-                        }
+                        // BaseColorScale (e.g. nails use 0,0,0 for black)
+                        ApplyBaseColorScale(bmp, dictionary);
 
                         // Opaque vegetation (trunks, bark): the diffuse alpha is not coverage.
                         if (IsOpaqueSpeedTree(material))
@@ -10228,6 +10207,35 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
     }
 
     private static byte LinearToSrgbByte(float x) => (byte)Math.Clamp((int)MathF.Round(LinearToSrgb01(x) * 255f), 0, 255);
+
+    /// <summary>The BaseColorScale among a material's values (r, g, b, a), if it has one.</summary>
+    private static bool TryGetBaseColorScale(IReadOnlyDictionary<string, object>? values, [System.Diagnostics.CodeAnalysis.MaybeNullWhen(false)] out Vector4 scale)
+    {
+        if (values != null && values.TryGetValue("BaseColorScale", out var value) && value is Vector4 v4)
+        {
+            scale = v4;
+            return true;
+        }
+
+        scale = null;
+        return false;
+    }
+
+    /// <summary>The BaseColorScale of the named material of the shown appearance, if it has one.</summary>
+    private bool TryGetBaseColorScale(string materialName, [System.Diagnostics.CodeAnalysis.MaybeNullWhen(false)] out Vector4 scale)
+    {
+        scale = null;
+        return TryGetRawMaterial(materialName, out var material) && TryGetBaseColorScale(material?.Values, out scale);
+    }
+
+    /// <summary>Multiplies a baked albedo by the material's BaseColorScale, if it has one.</summary>
+    private static void ApplyBaseColorScale(Bitmap bmp, IReadOnlyDictionary<string, object> values)
+    {
+        if (TryGetBaseColorScale(values, out var scale))
+        {
+            ApplyBaseColorScale(bmp, scale.X, scale.Y, scale.Z);
+        }
+    }
 
     /// <summary>
     /// Multiplies an sRGB albedo by BaseColorScale the way the shader does: in linear space
