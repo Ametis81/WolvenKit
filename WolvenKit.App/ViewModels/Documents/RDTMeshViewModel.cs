@@ -775,8 +775,7 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
 
             foreach (var materialName in mmapp.ChunkMaterials)
             {
-                var name = GetUniqueMaterialName(materialName.ToString().NotNull(), data);
-                appMaterials.Add(materials.TryGetValue(name, out var material) ? material : new Material(name));
+                appMaterials.Add(ChunkMaterial(materials, materialName.ToString().NotNull(), data));
             }
 
             var appearance = new Appearance(mmapp.Name.ToString().NotNull());
@@ -1287,15 +1286,7 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
             {
                 foreach (var m in mmApp.ChunkMaterials)
                 {
-                    var name = GetUniqueMaterialName(m.ToString().NotNull(), mesh, meshPath);
-                    if (materials.TryGetValue(name, out var material))
-                    {
-                        appMaterials.Add(material);
-                    }
-                    else
-                    {
-                        appMaterials.Add(new Material(name));
-                    }
+                    appMaterials.Add(ChunkMaterial(materials, m.ToString().NotNull(), mesh, meshPath));
                 }
             }
         }
@@ -3736,8 +3727,7 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
 
         foreach (var materialName in meshApp.ChunkMaterials)
         {
-            var name = GetUniqueMaterialName(materialName.ToString().NotNull(), mesh, meshPath);
-            appMaterials.Add(materials.TryGetValue(name, out var m) ? m : new Material(name));
+            appMaterials.Add(ChunkMaterial(materials, materialName.ToString().NotNull(), mesh, meshPath));
         }
 
         return appMaterials;
