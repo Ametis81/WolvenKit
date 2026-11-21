@@ -104,6 +104,23 @@ public partial class RDTMeshViewModel
         set => SetProperty(ref _previewImageAlignment, value);
     }
 
+    /// <summary>
+    /// What the image shows: the item cropped to its pixels and fitted in (each icon framed anew),
+    /// or what the camera sees, as zoomed and placed (cut to the image's shape).
+    /// </summary>
+    public IReadOnlyList<string> PreviewImageFramings { get; } = ["Fit item", "Camera view"];
+
+    private string _previewImageFraming = "Fit item";
+
+    public string PreviewImageFraming
+    {
+        get => _previewImageFraming;
+        set => SetProperty(ref _previewImageFraming, value);
+    }
+
+    /// <summary>The image keeps the camera's view: no framing per appearance, no crop to the item.</summary>
+    public bool KeepsCameraView => PreviewImageFraming == "Camera view";
+
     public sealed record PreviewBackgroundOption(string Label, Color? Color)
     {
         public override string ToString() => Label;
@@ -750,7 +767,8 @@ public partial class RDTMeshViewModel
         var options = new PreviewImageLayout(
             PreviewImageMargin / 100f,
             PreviewImageAlignment == "Bottom",
-            PreviewBackground.Color);
+            PreviewBackground.Color,
+            KeepsCameraView);
         try
         {
             var result = await Task.Run(() => BuildPreviewImage(overBlack, overWhite, outW, outH, options, fileName));
@@ -787,7 +805,7 @@ public partial class RDTMeshViewModel
         }
     }
 
-    private sealed record PreviewImageLayout(float Margin, bool AlignBottom, Color? Background);
+    private sealed record PreviewImageLayout(float Margin, bool AlignBottom, Color? Background, bool CameraView = false);
 
     private static (int ObjectPixels, float Upscale)? BuildPreviewImage(
         Stream overBlack, Stream overWhite, int outW, int outH, PreviewImageLayout layout, string fileName)
@@ -854,13 +872,35 @@ public partial class RDTMeshViewModel
 
         // Crop with a pixel of slack for the soft edge; fit into the output without distortion,
         // with the chosen margin, centered or standing on the bottom margin.
-        var crop = Rectangle.FromLTRB(Math.Max(0, minX - 1), Math.Max(0, minY - 1), Math.Min(w, maxX + 2), Math.Min(h, maxY + 2));
-        var margin = Math.Max(layout.Margin > 0 ? 1f : 0f, Math.Min(outW, outH) * layout.Margin);
-        var scale = Math.Min((outW - 2 * margin) / crop.Width, (outH - 2 * margin) / crop.Height);
-        var dw = crop.Width * scale;
-        var dh = crop.Height * scale;
-        var top = layout.AlignBottom ? outH - margin - dh : (outH - dh) / 2f;
-        var dest = new RectangleF((outW - dw) / 2f, top, dw, dh);
+        Rectangle crop;
+        float scale;
+        RectangleF dest;
+        if (layout.CameraView)
+        {
+            // The camera's view as it is: the largest centered part of the render with the
+            // image's shape, filling the image (margin and alignment are the camera's).
+            var aspect = (float)outW / outH;
+            int cw = w, ch = (int)MathF.Round(w / aspect);
+            if (ch > h)
+            {
+                ch = h;
+                cw = Math.Min(w, (int)MathF.Round(h * aspect));
+            }
+
+            crop = new Rectangle((w - cw) / 2, (h - ch) / 2, cw, ch);
+            scale = (float)outW / cw;
+            dest = new RectangleF(0, 0, outW, outH);
+        }
+        else
+        {
+            crop = Rectangle.FromLTRB(Math.Max(0, minX - 1), Math.Max(0, minY - 1), Math.Min(w, maxX + 2), Math.Min(h, maxY + 2));
+            var margin = Math.Max(layout.Margin > 0 ? 1f : 0f, Math.Min(outW, outH) * layout.Margin);
+            scale = Math.Min((outW - 2 * margin) / crop.Width, (outH - 2 * margin) / crop.Height);
+            var dw = crop.Width * scale;
+            var dh = crop.Height * scale;
+            var top = layout.AlignBottom ? outH - margin - dh : (outH - dh) / 2f;
+            dest = new RectangleF((outW - dw) / 2f, top, dw, dh);
+        }
 
         using var output = new Bitmap(outW, outH, PixelFormat.Format32bppPArgb);
         using (var g = Graphics.FromImage(output))
