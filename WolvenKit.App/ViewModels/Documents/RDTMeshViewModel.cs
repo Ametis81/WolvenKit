@@ -421,6 +421,8 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
     {
         if (e.PropertyName == nameof(SelectedAppearance) && SelectedAppearance is not null)
         {
+            // before the node tree is filled, so its check boxes read the carried state
+            CarryChunkVisibility(SelectedAppearance);
             if (SelectedAppearance.ModelGroup is not null)
             {
                 SelectedModelGroup = SelectedAppearance.ModelGroup.ToList();
