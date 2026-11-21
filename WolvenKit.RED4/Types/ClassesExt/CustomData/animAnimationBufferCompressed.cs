@@ -161,6 +161,16 @@ public partial class animAnimationBufferCompressed //: IRedAppendix
         }
     }
 
+    // Key times are stored as a fraction of the clip in 0..65535. Rounded, not truncated: a key
+    // read and written again keeps its exact time (truncation moved it back a step each time).
+    private ushort TimeToU16(float time)
+    {
+        float duration = Duration;
+        return duration > 0f
+            ? (ushort)Math.Round(Math.Clamp(time / duration, 0f, 1f) * ushort.MaxValue)
+            : (ushort)0;
+    }
+
     internal static Func<UInt16, float> DequantU16toF32 = (ui16) => ((1f / 65535f) * ui16 * 2) - 1f;
     internal static Func<float, UInt16> QuantizeF32toU16 = (f32) => Convert.ToUInt16((f32 + 1) / 2 * (65535));
 
@@ -285,7 +295,7 @@ public partial class animAnimationBufferCompressed //: IRedAppendix
         for (int i = 0; i < AnimKeys.Count; i++)
         {
             // NB order of time, idx is different to ConstAnimKeys
-            bw.Write((ushort)(AnimKeys[i].Time / Duration * ushort.MaxValue));
+            bw.Write(TimeToU16(AnimKeys[i].Time));
 
             var bitWiseData = 0;
             var (component, x, y, z, wSign) = FromAnimKey(AnimKeys[i]);
@@ -302,7 +312,7 @@ public partial class animAnimationBufferCompressed //: IRedAppendix
         for (int i = 0; i < AnimKeysRaw.Count; i++)
         {
             // NB order of time, idx is different to ConstAnimKeys
-            bw.Write((ushort)(AnimKeysRaw[i].Time / Duration * ushort.MaxValue));
+            bw.Write(TimeToU16(AnimKeysRaw[i].Time));
 
             var bitWiseData = 0;
             var (component, x, y, z, wSign) = FromAnimKey(AnimKeysRaw[i]);
@@ -325,7 +335,7 @@ public partial class animAnimationBufferCompressed //: IRedAppendix
             bitWiseData |= component << componentRightShift;
             bitWiseData |= ConstAnimKeys[i].Idx;
             bw.Write((ushort)bitWiseData);
-            bw.Write((ushort)(ConstAnimKeys[i].Time / Duration * ushort.MaxValue));
+            bw.Write(TimeToU16(ConstAnimKeys[i].Time));
 
             bw.Write((float)x);
             bw.Write((float)y);
@@ -335,7 +345,7 @@ public partial class animAnimationBufferCompressed //: IRedAppendix
         for (int i = 0; i < TrackKeys.Count; i++)
         {
             // NB different time, idx order to ConstTrackKeys
-            bw.Write((ushort)(TrackKeys[i].Time / Duration * ushort.MaxValue));
+            bw.Write(TimeToU16(TrackKeys[i].Time));
             bw.Write(TrackKeys[i].TrackIndex);
             bw.Write((float)TrackKeys[i].Value);
         }
@@ -344,7 +354,7 @@ public partial class animAnimationBufferCompressed //: IRedAppendix
         {
             // NB different idx, time order to TrackKeys
             bw.Write(ConstTrackKeys[i].TrackIndex);
-            bw.Write((ushort)(ConstTrackKeys[i].Time / Duration * ushort.MaxValue));
+            bw.Write(TimeToU16(ConstTrackKeys[i].Time));
             bw.Write((float)ConstTrackKeys[i].Value);
         }
 
