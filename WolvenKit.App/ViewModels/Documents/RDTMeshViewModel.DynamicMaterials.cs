@@ -10,7 +10,7 @@ namespace WolvenKit.App.ViewModels.Documents;
 /// <summary>
 /// ArchiveXL dynamic materials: a chunk material "red@neon" uses the material entry "@neon" with
 /// {material} = "red" in its paths (the base material and every resource it references; a leading
-/// '*' marks such a path). The preview resolves them as Un-Dynamify Materials would.
+/// '*' marks such a path). Resolved with the helpers the material export and Un-Dynamify Materials use.
 /// </summary>
 public partial class RDTMeshViewModel
 {
@@ -47,8 +47,6 @@ public partial class RDTMeshViewModel
             return null;
         }
 
-        string Substitute(string path) => path.Replace("{material}", value).Replace("*", "");
-
         CMaterialInstance? source;
         if (entry.IsLocalInstance)
         {
@@ -58,7 +56,11 @@ public partial class RDTMeshViewModel
         {
             // an external dynamic material: its .mi path holds {material}
             var path = MeshMaterialLists.GetExternalMaterialPath(mesh, entry.Index);
-            var resolved = Substitute(path.GetResolvedText() ?? string.Empty);
+            var resolved = path == ResourcePath.Empty
+                ? string.Empty
+                : WolvenKit.Modkit.Resources.ArchiveXlHelper
+                    .ResolvePotentiallyDynamicDepotPath(new CResourceAsyncReference<IMaterial>(path), value)
+                    .DepotPath.GetResolvedText() ?? string.Empty;
             source = resolved.Length > 0 ? GetProjectOrDepotFile(resolved)?.RootChunk as CMaterialInstance : null;
             if (source == null && resolved.Length > 0)
             {
@@ -80,8 +82,7 @@ public partial class RDTMeshViewModel
 
         var instance = new CMaterialInstance
         {
-            BaseMaterial = new CResourceReference<IMaterial>(
-                Substitute(source.BaseMaterial.DepotPath.GetResolvedText() ?? string.Empty), source.BaseMaterial.Flags),
+            BaseMaterial = WolvenKit.Modkit.Resources.ArchiveXlHelper.ResolveBaseMaterial(source.BaseMaterial, value),
             EnableMask = source.EnableMask,
             ResourceVersion = source.ResourceVersion,
         };
