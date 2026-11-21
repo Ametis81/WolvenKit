@@ -177,6 +177,7 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
     {
         if (IsLoaded)
         {
+            RebuildMeshIfChanged();
             ResumeLiveMaterialUpdate();
             return;
         }
@@ -276,6 +277,7 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
     {
         // Subscription stays: Load() after Unload would not re-subscribe.
         RollbackGeneratedData();
+        RememberMeshStructure();
 
         // Live material update only while the preview is shown (Load resumes it).
         PauseLiveMaterialUpdate();
