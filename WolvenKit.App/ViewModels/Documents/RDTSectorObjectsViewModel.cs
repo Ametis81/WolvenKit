@@ -39,6 +39,12 @@ public partial class RDTSectorObjectsViewModel : RedDocumentTabViewModel
     /// <summary>Asks the document to show this object (node index, nodeData index) in the sector preview.</summary>
     public event EventHandler<(int NodeIndex, int NodeDataIndex)>? PreviewOpenRequested;
 
+    /// <summary>
+    /// A row was selected here (node index, nodeData index): the sector preview and the data tab pick the same object
+    /// the next time they're shown.
+    /// </summary>
+    public event EventHandler<(int NodeIndex, int NodeDataIndex)>? ObjectPicked;
+
     /// <summary>Raised when the rows to show change, so the view refreshes its filter.</summary>
     public event EventHandler? FilterChanged;
 
@@ -58,6 +64,14 @@ public partial class RDTSectorObjectsViewModel : RedDocumentTabViewModel
     [ObservableProperty] private string _selectedTargetGroup = AllTargetGroups;
 
     [ObservableProperty] private SectorObject? _selectedObject;
+
+    partial void OnSelectedObjectChanged(SectorObject? value)
+    {
+        if (value is not null)
+        {
+            ObjectPicked?.Invoke(this, (value.NodeIndex, value.NodeDataIndex));
+        }
+    }
 
     [ObservableProperty] private bool _onlyInXl;
 
@@ -79,6 +93,9 @@ public partial class RDTSectorObjectsViewModel : RedDocumentTabViewModel
 
     // an object picked in the preview, selected the next time the list is built
     private int? _pendingNodeDataIndex;
+
+    // whether that pick searches the list down to its row
+    private bool _pendingSearch = true;
 
     // the search the preview pick put in ("#123"), cleared with the pick
     private string? _pickFilter;
@@ -137,9 +154,13 @@ public partial class RDTSectorObjectsViewModel : RedDocumentTabViewModel
             _pendingNodeDataIndex = null;
             if (objects.FirstOrDefault(o => o.NodeDataIndex == pending) is { } picked)
             {
-                // shows the one row, its groups open
-                _pickFilter = $"#{picked.NodeDataIndex}";
-                FilterText = _pickFilter;
+                if (_pendingSearch)
+                {
+                    // shows the one row, its groups open
+                    _pickFilter = $"#{picked.NodeDataIndex}";
+                    FilterText = _pickFilter;
+                }
+
                 SelectedObject = picked;
             }
         }
@@ -308,8 +329,15 @@ public partial class RDTSectorObjectsViewModel : RedDocumentTabViewModel
             result.SectorRejected ? " · expectedNodes differs: ArchiveXL skips the whole sector" : "");
     }
 
-    /// <summary>The object picked in the sector preview: selected when this tab is shown.</summary>
-    public void SelectWhenShown(int nodeDataIndex) => _pendingNodeDataIndex = nodeDataIndex;
+    /// <summary>
+    /// The object picked in the sector preview, or the row last selected here: selected when this tab is shown. With
+    /// <paramref name="search"/>, the list is searched down to that one row.
+    /// </summary>
+    public void SelectWhenShown(int nodeDataIndex, bool search = true)
+    {
+        _pendingNodeDataIndex = nodeDataIndex;
+        _pendingSearch = search;
+    }
 
     /// <summary>
     /// The preview's selection was cleared: no row selected, and the search the pick put in goes, so the whole list

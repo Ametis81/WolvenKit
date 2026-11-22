@@ -137,8 +137,9 @@ public partial class RedDocumentViewModel : DocumentViewModel, IDisposable
                 meshViewModel.SelectedNodeDataIndex = _selectedNodeDataIndex;
                 meshViewModel.SelectWorldNode();
                 break;
+            // picked in the preview: that one row, found with a search; picked there: selected again, the list as it was
             case RDTSectorObjectsViewModel objectsViewModel when _selectedNodeDataIndex is { } nodeDataIndex:
-                objectsViewModel.SelectWhenShown(nodeDataIndex);
+                objectsViewModel.SelectWhenShown(nodeDataIndex, search: !_pickedInObjectsTab);
                 break;
             case RDTSectorObjectsViewModel objectsViewModel when _clearObjectsPick:
                 _clearObjectsPick = false;
@@ -343,6 +344,7 @@ public partial class RedDocumentViewModel : DocumentViewModel, IDisposable
             var objectsTab = new RDTSectorObjectsViewModel(wss, this);
             objectsTab.NodeOpenRequested += OnSectorObjectOpenRequested;
             objectsTab.PreviewOpenRequested += OnSectorObjectPreviewRequested;
+            objectsTab.ObjectPicked += OnSectorObjectPicked;
             TabItemViewModels.Add(objectsTab);
         }
         if (cls is worldStreamingBlock wsb)
@@ -399,8 +401,21 @@ public partial class RedDocumentViewModel : DocumentViewModel, IDisposable
     private bool _clearDataSelection;
     private bool _clearObjectsPick;
 
+    // the current pick came from a row selected in the Sector Objects tab
+    private bool _pickedInObjectsTab;
+
+    // a row selected in the Sector Objects tab: the preview and the data tab select it when they're shown
+    private void OnSectorObjectPicked(object? sender, (int NodeIndex, int NodeDataIndex) e)
+    {
+        _clearDataSelection = _clearObjectsPick = false;
+        _pickedInObjectsTab = true;
+        _selectedWorldNodeIndex = e.NodeIndex.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        _selectedNodeDataIndex = e.NodeDataIndex;
+    }
+
     private void OnSectorNodeSelected(object? sender, string? e)
     {
+        _pickedInObjectsTab = false;
         _clearDataSelection = _clearObjectsPick = e is null;
         _selectedWorldNodeIndex = e;
         _selectedNodeDataIndex = sender is RDTMeshViewModel { LastSelectedNodeDataIndices: { } indices } &&
@@ -413,6 +428,7 @@ public partial class RedDocumentViewModel : DocumentViewModel, IDisposable
     // the Sector Objects tab: show the object in the sector preview, which selects it when it's shown
     private void OnSectorObjectPreviewRequested(object? sender, (int NodeIndex, int NodeDataIndex) e)
     {
+        _pickedInObjectsTab = true;
         _clearDataSelection = _clearObjectsPick = false;
         _selectedWorldNodeIndex = e.NodeIndex.ToString(System.Globalization.CultureInfo.InvariantCulture);
         _selectedNodeDataIndex = e.NodeDataIndex;
@@ -467,6 +483,7 @@ public partial class RedDocumentViewModel : DocumentViewModel, IDisposable
                 case RDTSectorObjectsViewModel objectsTab:
                     objectsTab.NodeOpenRequested -= OnSectorObjectOpenRequested;
                     objectsTab.PreviewOpenRequested -= OnSectorObjectPreviewRequested;
+                    objectsTab.ObjectPicked -= OnSectorObjectPicked;
                     break;
                 case RDTDataViewModel dataViewModel when !keepRootTab:
                     dataViewModel.OnSectorNodeSelected -= OnSectorNodeSelected;
