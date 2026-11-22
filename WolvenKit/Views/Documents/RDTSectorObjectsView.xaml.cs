@@ -104,6 +104,13 @@ namespace WolvenKit.Views.Documents
             {
                 view.Refresh();
             }
+
+            // search cleared: back to the selected row (its group stays open), not to the top of the whole list
+            if (_viewModel is { IsFiltering: false, SelectedObject: { } selected } && _viewModel.Matches(selected))
+            {
+                Dispatcher.BeginInvoke(new Action(() => ObjectsGrid.ScrollIntoView(selected)),
+                    System.Windows.Threading.DispatcherPriority.ContextIdle);
+            }
         }
 
         private void ObjectsGrid_OnMouseDoubleClick(object sender, MouseButtonEventArgs e)
