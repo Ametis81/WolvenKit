@@ -1558,6 +1558,7 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
         if ((args.Position - down).Length < 4)
         {
             ClearSelection();
+            ClearSectorPick();
         }
     }
 
@@ -1567,6 +1568,22 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
         RetoreSelectedMeshMaterial();
         CurrentSelection.Unselect();
         SelectedItem = null;
+    }
+
+    /// <summary>
+    /// Nothing picked in the sector any more: the data tab and the Sector Objects tab drop the object too.
+    /// </summary>
+    private void ClearSectorPick()
+    {
+        if (LastSelectedNodeDataIndices is null && SelectedNodeIndex is null)
+        {
+            return;
+        }
+
+        SelectedNodeIndex = null;
+        SelectedNodeDataIndex = null;
+        LastSelectedNodeDataIndices = null;
+        OnSectorNodeSelected?.Invoke(this, null);
     }
 
 

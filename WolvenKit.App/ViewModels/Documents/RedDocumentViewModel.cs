@@ -125,6 +125,11 @@ public partial class RedDocumentViewModel : DocumentViewModel, IDisposable
                     int.TryParse(_selectedWorldNodeIndex, out var worldNodeIndex);
                     model.AddToSelection(model.FindWorldNode(worldNodeIndex));
                 }
+                else if (_clearDataSelection)
+                {
+                    _clearDataSelection = false;
+                    model.ClearSelection();
+                }
                 model.OnReloadRequired += OnReloadTabs;
                 break;
             case RDTMeshViewModel meshViewModel:
@@ -134,6 +139,10 @@ public partial class RedDocumentViewModel : DocumentViewModel, IDisposable
                 break;
             case RDTSectorObjectsViewModel objectsViewModel when _selectedNodeDataIndex is { } nodeDataIndex:
                 objectsViewModel.SelectWhenShown(nodeDataIndex);
+                break;
+            case RDTSectorObjectsViewModel objectsViewModel when _clearObjectsPick:
+                _clearObjectsPick = false;
+                objectsViewModel.ClearPick();
                 break;
         }
 
@@ -385,8 +394,14 @@ public partial class RedDocumentViewModel : DocumentViewModel, IDisposable
     // nodeData entry of the object picked in the preview or the Sector Objects tab
     private int? _selectedNodeDataIndex;
 
+    // the preview's selection was cleared: the data tab and the Sector Objects tab drop theirs the next time they're
+    // shown (once, so a selection made there afterwards stays)
+    private bool _clearDataSelection;
+    private bool _clearObjectsPick;
+
     private void OnSectorNodeSelected(object? sender, string? e)
     {
+        _clearDataSelection = _clearObjectsPick = e is null;
         _selectedWorldNodeIndex = e;
         _selectedNodeDataIndex = sender is RDTMeshViewModel { LastSelectedNodeDataIndices: { } indices } &&
                                  int.TryParse(indices.Split(',')[0].Trim(), System.Globalization.NumberStyles.None,
@@ -398,6 +413,7 @@ public partial class RedDocumentViewModel : DocumentViewModel, IDisposable
     // the Sector Objects tab: show the object in the sector preview, which selects it when it's shown
     private void OnSectorObjectPreviewRequested(object? sender, (int NodeIndex, int NodeDataIndex) e)
     {
+        _clearDataSelection = _clearObjectsPick = false;
         _selectedWorldNodeIndex = e.NodeIndex.ToString(System.Globalization.CultureInfo.InvariantCulture);
         _selectedNodeDataIndex = e.NodeDataIndex;
         if (TabItemViewModels.OfType<RDTMeshViewModel>().FirstOrDefault() is { } previewTab)
@@ -409,6 +425,7 @@ public partial class RedDocumentViewModel : DocumentViewModel, IDisposable
     // the Sector Objects tab: show the node in the data tab, which selects it when it's shown
     private void OnSectorObjectOpenRequested(object? sender, int nodeIndex)
     {
+        _clearDataSelection = _clearObjectsPick = false;
         _selectedWorldNodeIndex = nodeIndex.ToString(System.Globalization.CultureInfo.InvariantCulture);
         _selectedNodeDataIndex = null;
         if (GetMainFile() is { } dataTab)

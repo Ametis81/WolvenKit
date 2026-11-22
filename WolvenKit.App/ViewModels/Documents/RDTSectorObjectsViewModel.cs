@@ -80,6 +80,9 @@ public partial class RDTSectorObjectsViewModel : RedDocumentTabViewModel
     // an object picked in the preview, selected the next time the list is built
     private int? _pendingNodeDataIndex;
 
+    // the search the preview pick put in ("#123"), cleared with the pick
+    private string? _pickFilter;
+
     partial void OnFilterTextChanged(string value)
     {
         OnPropertyChanged(nameof(IsFiltering));
@@ -135,7 +138,8 @@ public partial class RDTSectorObjectsViewModel : RedDocumentTabViewModel
             if (objects.FirstOrDefault(o => o.NodeDataIndex == pending) is { } picked)
             {
                 // shows the one row, its groups open
-                FilterText = $"#{picked.NodeDataIndex}";
+                _pickFilter = $"#{picked.NodeDataIndex}";
+                FilterText = _pickFilter;
                 SelectedObject = picked;
             }
         }
@@ -306,6 +310,22 @@ public partial class RDTSectorObjectsViewModel : RedDocumentTabViewModel
 
     /// <summary>The object picked in the sector preview: selected when this tab is shown.</summary>
     public void SelectWhenShown(int nodeDataIndex) => _pendingNodeDataIndex = nodeDataIndex;
+
+    /// <summary>
+    /// The preview's selection was cleared: no row selected, and the search the pick put in goes, so the whole list
+    /// shows again. A search typed by hand stays.
+    /// </summary>
+    public void ClearPick()
+    {
+        _pendingNodeDataIndex = null;
+        if (_pickFilter is not null && FilterText == _pickFilter)
+        {
+            FilterText = "";
+        }
+
+        _pickFilter = null;
+        SelectedObject = null;
+    }
 
     /// <summary>Shows the object in the sector preview.</summary>
     [RelayCommand]
