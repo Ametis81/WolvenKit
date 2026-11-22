@@ -35,6 +35,9 @@
         <!-- TOP FILE SELECTOR -->
         <syncfusion:SfDataGrid
             x:Name="Categories"
+            BorderBrush="{DynamicResource WolvenKitGridLine}"
+            RowSelectionBrush="{DynamicResource WolvenKitListSelection}"
+            CurrentCellBorderThickness="0"
             HeaderRowHeight="{DynamicResource WolvenKitTreeGridRowHeaderHeight}"
             RowHeight="{DynamicResource WolvenKitNewFileRowHeight}"
             ColumnSizer="AutoLastColumnFill"
@@ -42,6 +45,15 @@
             AllowSorting="False"
             AutoGenerateColumns="False"
             IsReadOnly="True">
+            <syncfusion:SfDataGrid.Resources>
+                <!--  grid lines: the theme's, as in the Import / Export tools  -->
+                <Style TargetType="syncfusion:GridCell">
+                    <Setter Property="BorderBrush" Value="{DynamicResource WolvenKitGridLine}" />
+                </Style>
+                <Style TargetType="syncfusion:GridHeaderCellControl">
+                    <Setter Property="BorderBrush" Value="{DynamicResource WolvenKitGridLine}" />
+                </Style>
+            </syncfusion:SfDataGrid.Resources>
             <syncfusion:SfDataGrid.Columns>
                 <syncfusion:GridTemplateColumn HeaderText="Category">
                     <syncfusion:GridTemplateColumn.CellTemplate>
@@ -77,10 +89,22 @@
 
             <syncfusion:SfDataGrid
                 x:Name="DataGrid"
+                BorderBrush="{DynamicResource WolvenKitGridLine}"
+                RowSelectionBrush="{DynamicResource WolvenKitListSelection}"
+                CurrentCellBorderThickness="0"
                 HeaderRowHeight="{DynamicResource WolvenKitTreeGridRowHeaderHeight}"
                 RowHeight="{DynamicResource WolvenKitNewFileRowHeight}"
                 ItemsSourceChanged="DataGrid_OnItemsSourceChanged"
                 AutoGenerateColumns="False">
+                <syncfusion:SfDataGrid.Resources>
+                    <!--  grid lines: the theme's, as in the Import / Export tools  -->
+                    <Style TargetType="syncfusion:GridCell">
+                        <Setter Property="BorderBrush" Value="{DynamicResource WolvenKitGridLine}" />
+                    </Style>
+                    <Style TargetType="syncfusion:GridHeaderCellControl">
+                        <Setter Property="BorderBrush" Value="{DynamicResource WolvenKitGridLine}" />
+                    </Style>
+                </syncfusion:SfDataGrid.Resources>
                 <syncfusion:SfDataGrid.Columns>
 
                     <syncfusion:GridTemplateColumn
