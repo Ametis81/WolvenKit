@@ -11114,7 +11114,7 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
     /// <summary>
     /// Flies the camera so the whole box is in view, from the side it's looked at now (as Shift+click on a mesh).
     /// </summary>
-    private void ZoomToBounds(SharpDX.BoundingBox v)
+    public void ZoomToBounds(SharpDX.BoundingBox v)
     {
         if (Camera == null)
         {
@@ -11153,18 +11153,57 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
 
     /// <summary>
     /// Sector objects (node index, nodeData index) to fly the camera to once they're found in the preview: set by
-    /// "Show in Sector Preview" of the Sector Objects tab.
+    /// "Show in Sector Preview" of the Sector Objects tab. The view takes them after a frame is drawn (see
+    /// <see cref="TryTakePendingZoom"/>), so its own framing of a freshly loaded sector doesn't override the flight.
     /// </summary>
-    public IReadOnlyList<(int NodeIndex, int NodeDataIndex)>? PendingZoom { get; set; }
-
-    // flies to the objects of PendingZoom, all of them in view; kept for later while none of them is rendered yet
-    private void ZoomToPendingObjects()
+    public IReadOnlyList<(int NodeIndex, int NodeDataIndex)>? PendingZoom
     {
-        if (PendingZoom is not { Count: > 0 } targets || Camera == null)
+        get => _pendingZoom;
+        set
         {
-            return;
+            _pendingZoom = value;
+            _pendingZoomFrames = 0;
+        }
+    }
+
+    private IReadOnlyList<(int NodeIndex, int NodeDataIndex)>? _pendingZoom;
+
+    // frames drawn while the objects of PendingZoom weren't found (the sector still loading)
+    private int _pendingZoomFrames;
+
+    // about ten seconds of frames: a sector that loads slower than that is not waited for
+    private const int PendingZoomMaxFrames = 600;
+
+    /// <summary>
+    /// The box of all objects of <see cref="PendingZoom"/> once they're rendered; then PendingZoom is cleared. Called
+    /// by the view after each frame until it succeeds or gives up.
+    /// </summary>
+    public bool TryTakePendingZoom(out SharpDX.BoundingBox bounds)
+    {
+        bounds = default;
+        if (PendingZoom is not { Count: > 0 } targets)
+        {
+            return false;
         }
 
+        if (TryGetObjectsBounds(targets, out bounds))
+        {
+            PendingZoom = null;
+            ZoomExtentsRequested = false;
+            return true;
+        }
+
+        if (++_pendingZoomFrames > PendingZoomMaxFrames)
+        {
+            PendingZoom = null;
+        }
+
+        return false;
+    }
+
+    // the box of the objects found in the preview (node index, nodeData index); false while none is rendered yet
+    private bool TryGetObjectsBounds(IReadOnlyList<(int NodeIndex, int NodeDataIndex)> targets, out SharpDX.BoundingBox bounds)
+    {
         var savedNodeIndex = SelectedNodeIndex;
         SharpDX.BoundingBox? box = null;
         try
@@ -11184,10 +11223,10 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
                 {
                     UpdateChildrenSubmesh(group, submesh =>
                     {
-                        var bounds = submesh.BoundsWithTransform;
-                        if (bounds.Maximum != bounds.Minimum)
+                        var submeshBounds = submesh.BoundsWithTransform;
+                        if (submeshBounds.Maximum != submeshBounds.Minimum)
                         {
-                            box = box is { } merged ? SharpDX.BoundingBox.Merge(merged, bounds) : bounds;
+                            box = box is { } merged ? SharpDX.BoundingBox.Merge(merged, submeshBounds) : submeshBounds;
                         }
                     });
                 }
@@ -11199,11 +11238,8 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
             _matchNodeDataIndex = null;
         }
 
-        if (box is { } all)
-        {
-            PendingZoom = null;
-            ZoomToBounds(all);
-        }
+        bounds = box ?? default;
+        return box is not null;
     }
 
     public void SelectWorldNode()
@@ -11230,8 +11266,6 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
         {
             _matchNodeDataIndex = null;
         }
-
-        ZoomToPendingObjects();
     }
 
     private object? FindSelectedWorldNode()
