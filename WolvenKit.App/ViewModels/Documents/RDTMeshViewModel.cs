@@ -2002,8 +2002,8 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
         if (sm.IsTransparent || !TryGetRawMaterial(sm.MaterialName, out var alphaMat) || alphaMat.Values == null)
             return;
 
-        // Vegetation: leaves and fronds are cut-out cards seen from both sides (one-sided
-        // trunks and seams stay culled).
+        // Vegetation: leaves and fronds are cut-out cards seen from both sides; one-sided trunks stay culled
+        // and opaque; seams (where a branch meets the trunk) stay culled but cut out, their alpha fades them.
         if (IsSpeedTreeMaterial(alphaMat))
         {
             if (IsOpaqueSpeedTree(alphaMat))
@@ -2011,7 +2011,10 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
                 return; // trunks / bark: opaque whatever the diffuse alpha holds
             }
 
-            MakeTwoSided(sm);
+            if (!IsSeamSpeedTree(alphaMat))
+            {
+                MakeTwoSided(sm);
+            }
         }
 
         // Cutout / masked materials (chains, fences, foliage). The bake makes their alpha binary;
@@ -4480,6 +4483,8 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
                 (File.Exists(filename_rm) || !IsDeferredGlass(material.Name, material)) &&
                 (File.Exists(filename_bd) || !IsSpeedTreeMaterial(material)) &&
                 (!IsOpaqueSpeedTree(material) || File.Exists(filename_bd + ".opaque")) &&
+                // seams were baked opaque before (black where their alpha fades them out): bake them again
+                (!IsSeamSpeedTree(material) || !File.Exists(filename_bd + ".opaque")) &&
                 (!HasFoliageProfile(material, dictionary) || File.Exists(filename_bd + ".foliage")))
             {
                 PreviewTrace($"[Cache] '{material.Name}' up to date");
@@ -4489,7 +4494,7 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
             PreviewTrace($"Baking material: {material.Name}");
 
             // Something changed (or no cache yet): drop old outputs so every branch bakes again.
-            foreach (var f in new[] { filename_bd, filename_bn, filename_rm, emissivePng, filename_bd + ".foliage" })
+            foreach (var f in new[] { filename_bd, filename_bn, filename_rm, emissivePng, filename_bd + ".foliage", filename_bd + ".opaque" })
             {
                 try
                 { if (File.Exists(f)) File.Delete(f); }
@@ -11932,7 +11937,7 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
             dictionary["Normal"] = normal;
         }
 
-        // Trunks, bark and seams (onesided / seams) are opaque: their diffuse alpha is not a cut-out.
+        // Trunks and bark (onesided) are opaque: their diffuse alpha is not a cut-out. Seams are cut out.
         if (!IsOpaqueSpeedTree(material) && !dictionary.ContainsKey("AlphaThreshold"))
         {
             dictionary["AlphaThreshold"] = (CFloat)0.5f;
@@ -11941,7 +11946,7 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
 
     /// <summary>Leaves (not trunks or bark) of a SpeedTree material with a FoliageProfile set.</summary>
     private bool HasFoliageProfile(Material? material, IReadOnlyDictionary<string, object> dictionary) =>
-        IsSpeedTreeMaterial(material) && !IsOpaqueSpeedTree(material) &&
+        IsSpeedTreeMaterial(material) && !IsOpaqueSpeedTree(material) && !IsSeamSpeedTree(material) &&
         dictionary.TryGetValue("FoliageProfile", out var value) && value is IRedRef { DepotPath: var path } &&
         path != ResourcePath.Empty;
 
@@ -12075,7 +12080,15 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
         }
     }
 
-    /// <summary>One-sided and seam vegetation (trunks, bark): drawn opaque, culled.</summary>
+    /// <summary>
+    /// Seams of vegetation (speedtree_3d_v8_seams.mt): bark where a branch meets the trunk. Their diffuse alpha fades
+    /// them into the trunk (black where it is 0), so they're cut out, not opaque; culled like the trunk.
+    /// </summary>
+    private bool IsSeamSpeedTree(Material? material) =>
+        IsSpeedTreeMaterial(material) &&
+        GetTemplateFileName(material).Contains("seams", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>One-sided vegetation (trunks, bark): drawn opaque, culled.</summary>
     private bool IsOpaqueSpeedTree(Material? material)
     {
         if (!IsSpeedTreeMaterial(material))
@@ -12084,9 +12097,8 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
         }
 
         var template = GetTemplateFileName(material);
-        return (template.Contains("onesided", StringComparison.OrdinalIgnoreCase) &&
-                !template.Contains("gradient", StringComparison.OrdinalIgnoreCase)) ||
-               template.Contains("seams", StringComparison.OrdinalIgnoreCase);
+        return template.Contains("onesided", StringComparison.OrdinalIgnoreCase) &&
+               !template.Contains("gradient", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>A material on invisible.mt (e.g. base\fx\_shaders\invisible.mt): it draws nothing.</summary>
