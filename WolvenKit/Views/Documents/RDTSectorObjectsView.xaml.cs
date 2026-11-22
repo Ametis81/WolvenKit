@@ -58,6 +58,9 @@ namespace WolvenKit.Views.Documents
             }
         }
 
+        private void ShowInPreview_OnClick(object sender, RoutedEventArgs e) =>
+            _viewModel?.ShowInPreview(ObjectsGrid.SelectedItems.OfType<SectorObject>());
+
         private void CopyXlRemoval_OnClick(object sender, RoutedEventArgs e) =>
             _viewModel?.CopyXlRemoval(ObjectsGrid.SelectedItems.OfType<SectorObject>());
 

@@ -1626,36 +1626,8 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
 
             if (ShiftKeyPressed)
             {
-                if (Camera != null)
-                {
-                    // Zoom to the selected submesh
-                    var v = submesh.BoundsWithTransform;
-
-                    // Calculate the center of the bbox
-                    SharpDX.Vector3 bboxCenter = new SharpDX.Vector3(v.Center.X, v.Center.Y, v.Center.Z);
-
-                    // Calculate the extent of the bbox along each axis
-                    SharpDX.Vector3 bboxExtent = v.Maximum - v.Minimum;
-
-                    // Calculate the maximum extent of the bbox
-                    float maxExtent = Math.Max(bboxExtent.X, Math.Max(bboxExtent.Y, bboxExtent.Z));
-
-                    // Calculate the distance from the camera to ensure the entire bbox is visible
-                    float distance = maxExtent / (float)Math.Tan(SharpDX.MathUtil.DegreesToRadians(45.0f) / 2); // Assuming 45 degree field of view
-
-                    SharpDX.Vector3 CameraPos = new SharpDX.Vector3((float)Camera.Position.X, (float)Camera.Position.Y, (float)Camera.Position.Z);
-
-                    // Calculate the new camera position and target
-                    SharpDX.Vector3 newPosition = bboxCenter + SharpDX.Vector3.Normalize(CameraPos - bboxCenter) * distance;
-                    SharpDX.Vector3 newDirection = SharpDX.Vector3.Normalize(bboxCenter - newPosition);
-
-
-                    Camera?.AnimateTo(
-                    new System.Windows.Media.Media3D.Point3D(newPosition.X, newPosition.Y, newPosition.Z),
-                    new Vector3D(newDirection.X, newDirection.Y, newDirection.Z),
-                    new Vector3D(0, 1, 0),
-                    s_cameraAnimationTime);
-                }
+                // Zoom to the selected submesh
+                ZoomToBounds(submesh.BoundsWithTransform);
             }
         }
 
@@ -11139,6 +11111,101 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
         indices.Split(',').Any(i => int.TryParse(i.Trim(), System.Globalization.NumberStyles.None,
             System.Globalization.CultureInfo.InvariantCulture, out var value) && value == entry);
 
+    /// <summary>
+    /// Flies the camera so the whole box is in view, from the side it's looked at now (as Shift+click on a mesh).
+    /// </summary>
+    private void ZoomToBounds(SharpDX.BoundingBox v)
+    {
+        if (Camera == null)
+        {
+            return;
+        }
+
+        // Calculate the center of the bbox
+        var bboxCenter = new SharpDX.Vector3(v.Center.X, v.Center.Y, v.Center.Z);
+
+        // Calculate the maximum extent of the bbox
+        var bboxExtent = v.Maximum - v.Minimum;
+        var maxExtent = Math.Max(bboxExtent.X, Math.Max(bboxExtent.Y, bboxExtent.Z));
+
+        // Calculate the distance from the camera to ensure the entire bbox is visible (45 degree field of view)
+        var distance = maxExtent / (float)Math.Tan(SharpDX.MathUtil.DegreesToRadians(45.0f) / 2);
+
+        var cameraPos = new SharpDX.Vector3((float)Camera.Position.X, (float)Camera.Position.Y, (float)Camera.Position.Z);
+
+        // from the current side; a camera already at the center keeps its look direction
+        var away = cameraPos - bboxCenter;
+        if (away.LengthSquared() < 1e-6f)
+        {
+            away = -new SharpDX.Vector3((float)Camera.LookDirection.X, (float)Camera.LookDirection.Y, (float)Camera.LookDirection.Z);
+        }
+
+        // Calculate the new camera position and target
+        var newPosition = bboxCenter + SharpDX.Vector3.Normalize(away) * distance;
+        var newDirection = bboxCenter - newPosition;
+
+        Camera.AnimateTo(
+            new System.Windows.Media.Media3D.Point3D(newPosition.X, newPosition.Y, newPosition.Z),
+            new Vector3D(newDirection.X, newDirection.Y, newDirection.Z),
+            new Vector3D(0, 1, 0),
+            s_cameraAnimationTime);
+    }
+
+    /// <summary>
+    /// Sector objects (node index, nodeData index) to fly the camera to once they're found in the preview: set by
+    /// "Show in Sector Preview" of the Sector Objects tab.
+    /// </summary>
+    public IReadOnlyList<(int NodeIndex, int NodeDataIndex)>? PendingZoom { get; set; }
+
+    // flies to the objects of PendingZoom, all of them in view; kept for later while none of them is rendered yet
+    private void ZoomToPendingObjects()
+    {
+        if (PendingZoom is not { Count: > 0 } targets || Camera == null)
+        {
+            return;
+        }
+
+        var savedNodeIndex = SelectedNodeIndex;
+        SharpDX.BoundingBox? box = null;
+        try
+        {
+            foreach (var (nodeIndex, nodeDataIndex) in targets)
+            {
+                SelectedNodeIndex = nodeIndex.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                _matchNodeDataIndex = nodeDataIndex;
+                var found = FindSelectedWorldNode();
+                if (found is null)
+                {
+                    _matchNodeDataIndex = null;
+                    found = FindSelectedWorldNode();
+                }
+
+                if (found is GroupModel3D group)
+                {
+                    UpdateChildrenSubmesh(group, submesh =>
+                    {
+                        var bounds = submesh.BoundsWithTransform;
+                        if (bounds.Maximum != bounds.Minimum)
+                        {
+                            box = box is { } merged ? SharpDX.BoundingBox.Merge(merged, bounds) : bounds;
+                        }
+                    });
+                }
+            }
+        }
+        finally
+        {
+            SelectedNodeIndex = savedNodeIndex;
+            _matchNodeDataIndex = null;
+        }
+
+        if (box is { } all)
+        {
+            PendingZoom = null;
+            ZoomToBounds(all);
+        }
+    }
+
     public void SelectWorldNode()
     {
         if (SelectedNodeIndex is null)
@@ -11163,6 +11230,8 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
         {
             _matchNodeDataIndex = null;
         }
+
+        ZoomToPendingObjects();
     }
 
     private object? FindSelectedWorldNode()

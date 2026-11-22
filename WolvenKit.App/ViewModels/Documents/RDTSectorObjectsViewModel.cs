@@ -36,8 +36,11 @@ public partial class RDTSectorObjectsViewModel : RedDocumentTabViewModel
     /// <summary>Asks the document to show this node in the data tab.</summary>
     public event EventHandler<int>? NodeOpenRequested;
 
-    /// <summary>Asks the document to show this object (node index, nodeData index) in the sector preview.</summary>
-    public event EventHandler<(int NodeIndex, int NodeDataIndex)>? PreviewOpenRequested;
+    /// <summary>
+    /// Asks the document to show these objects (node index, nodeData index) in the sector preview: the first one is
+    /// selected, and the camera flies to them all.
+    /// </summary>
+    public event EventHandler<IReadOnlyList<(int NodeIndex, int NodeDataIndex)>>? PreviewOpenRequested;
 
     /// <summary>
     /// A row was selected here (node index, nodeData index): the sector preview and the data tab pick the same object
@@ -355,13 +358,18 @@ public partial class RDTSectorObjectsViewModel : RedDocumentTabViewModel
         SelectedObject = null;
     }
 
-    /// <summary>Shows the object in the sector preview.</summary>
-    [RelayCommand]
-    private void ShowInPreview(SectorObject? item)
+    /// <summary>Shows the selected rows in the sector preview, the camera flown to them.</summary>
+    public void ShowInPreview(IEnumerable<SectorObject> selected)
     {
-        if ((item ?? SelectedObject) is { } target)
+        var targets = selected.OrderBy(o => o.NodeDataIndex).Select(o => (o.NodeIndex, o.NodeDataIndex)).ToList();
+        if (targets.Count == 0 && SelectedObject is { } current)
         {
-            PreviewOpenRequested?.Invoke(this, (target.NodeIndex, target.NodeDataIndex));
+            targets.Add((current.NodeIndex, current.NodeDataIndex));
+        }
+
+        if (targets.Count > 0)
+        {
+            PreviewOpenRequested?.Invoke(this, targets);
         }
     }
 

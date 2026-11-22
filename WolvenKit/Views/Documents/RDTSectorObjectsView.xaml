@@ -120,7 +120,8 @@
                 <ContextMenu>
                     <MenuItem
                         Header="Show in Sector Preview"
-                        Command="{Binding ShowInPreviewCommand}" />
+                        ToolTip="Selects it in the preview and flies the camera to the selected rows"
+                        Click="ShowInPreview_OnClick" />
                     <MenuItem
                         Header="Show node in the data tab"
                         Command="{Binding OpenInDataCommand}" />

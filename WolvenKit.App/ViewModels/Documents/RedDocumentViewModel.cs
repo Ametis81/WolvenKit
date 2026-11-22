@@ -426,14 +426,21 @@ public partial class RedDocumentViewModel : DocumentViewModel, IDisposable
     }
 
     // the Sector Objects tab: show the object in the sector preview, which selects it when it's shown
-    private void OnSectorObjectPreviewRequested(object? sender, (int NodeIndex, int NodeDataIndex) e)
+    // the first object is selected, and the camera flies to them all
+    private void OnSectorObjectPreviewRequested(object? sender, IReadOnlyList<(int NodeIndex, int NodeDataIndex)> e)
     {
+        if (e.Count == 0)
+        {
+            return;
+        }
+
         _pickedInObjectsTab = true;
         _clearDataSelection = _clearObjectsPick = false;
-        _selectedWorldNodeIndex = e.NodeIndex.ToString(System.Globalization.CultureInfo.InvariantCulture);
-        _selectedNodeDataIndex = e.NodeDataIndex;
+        _selectedWorldNodeIndex = e[0].NodeIndex.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        _selectedNodeDataIndex = e[0].NodeDataIndex;
         if (TabItemViewModels.OfType<RDTMeshViewModel>().FirstOrDefault() is { } previewTab)
         {
+            previewTab.PendingZoom = e;
             SelectedTabItemViewModel = previewTab;
         }
     }
