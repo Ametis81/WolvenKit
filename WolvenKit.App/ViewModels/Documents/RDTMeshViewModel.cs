@@ -11097,6 +11097,17 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
                 // }
 
                 break;
+            // the type folders of a sector (Meshes, Entities, ...) hold the node rows
+            case GroupModel3DExt folder when IsSectorTypeFolder(folder):
+                foreach (var folderChild in folder.Children)
+                {
+                    if (findMeshChild(folderChild) is { } result)
+                    {
+                        return result;
+                    }
+                }
+
+                break;
             default:
                 break;
         }
@@ -11195,6 +11206,7 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
 
         if (++_pendingZoomFrames > PendingZoomMaxFrames)
         {
+            PreviewTrace($"[Zoom] none of the {targets.Count} object(s) found in the preview (node {targets[0].NodeIndex}, nodeData #{targets[0].NodeDataIndex})");
             PendingZoom = null;
         }
 
