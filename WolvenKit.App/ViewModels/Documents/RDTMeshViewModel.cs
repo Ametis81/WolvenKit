@@ -11213,46 +11213,92 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
         return false;
     }
 
-    // the box of the objects found in the preview (node index, nodeData index); false while none is rendered yet
+    // The world box of the objects found in the preview (node index, nodeData index); false while none is rendered
+    // yet. Computed from the geometry and the transforms down the tree, not from Helix's BoundsWithTransform: that
+    // one is only right once the node has been drawn, and parts never drawn (hidden appearance parts, collision)
+    // kept their local box near the origin, which put the camera far away.
     private bool TryGetObjectsBounds(IReadOnlyList<(int NodeIndex, int NodeDataIndex)> targets, out SharpDX.BoundingBox bounds)
     {
-        var savedNodeIndex = SelectedNodeIndex;
         SharpDX.BoundingBox? box = null;
-        try
+        foreach (var (nodeIndex, nodeDataIndex) in targets)
         {
-            foreach (var (nodeIndex, nodeDataIndex) in targets)
+            var index = nodeIndex.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            if (!AddNodeBounds(index, nodeDataIndex))
             {
-                SelectedNodeIndex = nodeIndex.ToString(System.Globalization.CultureInfo.InvariantCulture);
-                _matchNodeDataIndex = nodeDataIndex;
-                var found = FindSelectedWorldNode();
-                if (found is null)
-                {
-                    _matchNodeDataIndex = null;
-                    found = FindSelectedWorldNode();
-                }
-
-                if (found is GroupModel3D group)
-                {
-                    UpdateChildrenSubmesh(group, submesh =>
-                    {
-                        var submeshBounds = submesh.BoundsWithTransform;
-                        if (submeshBounds.Maximum != submeshBounds.Minimum)
-                        {
-                            box = box is { } merged ? SharpDX.BoundingBox.Merge(merged, submeshBounds) : submeshBounds;
-                        }
-                    });
-                }
+                // the node's first row, as SelectWorldNode
+                AddNodeBounds(index, null);
             }
-        }
-        finally
-        {
-            SelectedNodeIndex = savedNodeIndex;
-            _matchNodeDataIndex = null;
         }
 
         bounds = box ?? default;
         return box is not null;
+
+        bool AddNodeBounds(string index, int? entry)
+        {
+            var found = false;
+            foreach (var appearance in Appearances)
+            {
+                foreach (var model in appearance.ModelGroup.AsList())
+                {
+                    found |= Visit(model, SharpDX.Matrix.Identity, false);
+                }
+            }
+
+            return found;
+
+            // inside: within the matching node row, every drawn submesh counts
+            bool Visit(object element, SharpDX.Matrix parent, bool inside)
+            {
+                var world = element is HelixToolkit.Wpf.SharpDX.Element3D { Transform: { } transform } &&
+                            !transform.Value.IsIdentity
+                    ? ToSharpDxMatrix(transform.Value) * parent
+                    : parent;
+
+                switch (element)
+                {
+                    case SubmeshComponent submesh when inside:
+                        if (submesh.IsRendering && submesh.Geometry is { } geometry &&
+                            geometry.Bound.Maximum != geometry.Bound.Minimum)
+                        {
+                            var corners = geometry.Bound.GetCorners();
+                            for (var c = 0; c < corners.Length; c++)
+                            {
+                                corners[c] = SharpDX.Vector3.TransformCoordinate(corners[c], world);
+                            }
+
+                            var part = SharpDX.BoundingBox.FromPoints(corners);
+                            box = box is { } merged ? SharpDX.BoundingBox.Merge(merged, part) : part;
+                        }
+
+                        return true;
+                    case MeshComponent row when !inside && row.WorldNodeIndex == index &&
+                                                 (entry is not { } e || HasNodeDataIndex(row.WorldNodeDataIndices, e)):
+                        foreach (var child in row.Children)
+                        {
+                            Visit(child, world, true);
+                        }
+
+                        return true;
+                    case HelixToolkit.Wpf.SharpDX.GroupModel3D group when inside || group is SectorGroup || IsSectorTypeFolder(group):
+                        var any = false;
+                        foreach (var child in group.Children)
+                        {
+                            any |= Visit(child, world, inside);
+                        }
+
+                        return any;
+                    default:
+                        return false;
+                }
+            }
+        }
     }
+
+    private static SharpDX.Matrix ToSharpDxMatrix(System.Windows.Media.Media3D.Matrix3D m) => new(
+        (float)m.M11, (float)m.M12, (float)m.M13, (float)m.M14,
+        (float)m.M21, (float)m.M22, (float)m.M23, (float)m.M24,
+        (float)m.M31, (float)m.M32, (float)m.M33, (float)m.M34,
+        (float)m.OffsetX, (float)m.OffsetY, (float)m.OffsetZ, (float)m.M44);
 
     public void SelectWorldNode()
     {
