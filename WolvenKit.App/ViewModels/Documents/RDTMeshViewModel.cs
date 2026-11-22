@@ -12104,11 +12104,6 @@ public partial class RDTMeshViewModel : RedDocumentTabViewModel, IDisposable
     private bool IsOpaqueSpeedTree(Material? material) =>
         IsBarkSpeedTree(material) && !(material?.Instance is { } instance && instance.EnableMask);
 
-        var template = GetTemplateFileName(material);
-        return template.Contains("onesided", StringComparison.OrdinalIgnoreCase) &&
-               !template.Contains("gradient", StringComparison.OrdinalIgnoreCase);
-    }
-
     /// <summary>A material on invisible.mt (e.g. base\fx\_shaders\invisible.mt): it draws nothing.</summary>
     private bool IsInvisibleMaterial(Material? material) =>
         GetTemplateFileName(material).Equals("invisible", StringComparison.OrdinalIgnoreCase);
