@@ -67,6 +67,9 @@ namespace WolvenKit.Views.Documents
         private void CopyXlMutation_OnClick(object sender, RoutedEventArgs e) =>
             _viewModel?.CopyXlMutation(ObjectsGrid.SelectedItems.OfType<SectorObject>());
 
+        private void CopySummary_OnClick(object sender, RoutedEventArgs e) =>
+            _viewModel?.CopySummary(ObjectsGrid.SelectedItems.OfType<SectorObject>());
+
         private void CopyXlMutationEntries_OnClick(object sender, RoutedEventArgs e) =>
             _viewModel?.CopyXlMutation(ObjectsGrid.SelectedItems.OfType<SectorObject>(), entriesOnly: true);
 

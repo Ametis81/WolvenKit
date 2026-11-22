@@ -144,7 +144,8 @@
                     <Separator />
                     <MenuItem
                         Header="Copy class, indices and position"
-                        Command="{Binding CopySummaryCommand}" />
+                        ToolTip="One line per selected row"
+                        Click="CopySummary_OnClick" />
                 </ContextMenu>
             </DataGrid.ContextMenu>
 
@@ -259,28 +260,33 @@
             <!-- instances / collision actors of the selected row: ticked ones are removed on their own by Copy ArchiveXL removal -->
             <DataGrid.RowDetailsTemplate>
                 <DataTemplate>
-                    <StackPanel
-                        Margin="24,2,4,6"
+                    <!-- as wide as the grid, so the actor / instance boxes wrap instead of making one long line -->
+                    <Border
+                        Width="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                        HorizontalAlignment="Left"
+                        Padding="24,2,40,6"
                         Visibility="{Binding HasElements, Converter={StaticResource BooleanToVisibilityConverter}}">
-                        <TextBlock
-                            Foreground="{DynamicResource ContentForegroundAlt}"
-                            Text="Tick the ones to remove on their own with Copy ArchiveXL removal (all or none: the whole object)" />
-                        <ItemsControl ItemsSource="{Binding Elements}">
-                            <ItemsControl.ItemsPanel>
-                                <ItemsPanelTemplate>
-                                    <WrapPanel />
-                                </ItemsPanelTemplate>
-                            </ItemsControl.ItemsPanel>
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <CheckBox
-                                        Margin="0,2,16,2"
-                                        Content="{Binding Text}"
-                                        IsChecked="{Binding IsChecked}" />
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </StackPanel>
+                        <StackPanel>
+                            <TextBlock
+                                Foreground="{DynamicResource ContentForegroundAlt}"
+                                Text="Tick the ones to remove on their own with Copy ArchiveXL removal (all or none: the whole object)" />
+                            <ItemsControl ItemsSource="{Binding Elements}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <CheckBox
+                                            Margin="0,2,16,2"
+                                            Content="{Binding Text}"
+                                            IsChecked="{Binding IsChecked}" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
                 </DataTemplate>
             </DataGrid.RowDetailsTemplate>
 

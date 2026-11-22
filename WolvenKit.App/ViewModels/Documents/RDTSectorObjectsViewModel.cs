@@ -349,13 +349,21 @@ public partial class RDTSectorObjectsViewModel : RedDocumentTabViewModel
         Clipboard.SetText(SectorObjectList.BuildXlMutation(RelativeFilePath, Objects.Count, items, entriesOnly));
     }
 
-    /// <summary>Class, indices, resource and position: what an .xl removal or a bug report needs.</summary>
-    [RelayCommand]
-    private void CopySummary(SectorObject? item)
+    /// <summary>
+    /// Class, indices, resource and position of the selected rows, one line each: what an .xl removal or a bug
+    /// report needs.
+    /// </summary>
+    public void CopySummary(IEnumerable<SectorObject> selected)
     {
-        if ((item ?? SelectedObject) is { } target)
+        var items = selected.OrderBy(o => o.NodeDataIndex).ToList();
+        if (items.Count == 0 && SelectedObject is { } current)
         {
-            Clipboard.SetText(target.Summary);
+            items.Add(current);
+        }
+
+        if (items.Count > 0)
+        {
+            Clipboard.SetText(string.Join(Environment.NewLine, items.Select(o => o.Summary)));
         }
     }
 }
