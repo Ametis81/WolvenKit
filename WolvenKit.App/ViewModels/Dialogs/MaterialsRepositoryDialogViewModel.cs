@@ -363,9 +363,15 @@ public partial class MaterialsRepositoryViewModel : DialogWindowViewModel
 
         await _archiveManagerLoader.LoadArchiveManagerAsync();
 
-        var textures = _archiveManager.GetGroupedFiles().TryGetValue(".xbm", out var xbmFiles)
-            ? xbmFiles.GroupBy(x => x.Key).Select(x => x.First()).OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase).ToList()
-            : [];
+        // per path the copy the game (and the Asset Browser) uses; other copies of it are counted for the log
+        var copies = _archiveManager.GetGroupedFiles().TryGetValue(".xbm", out var xbmFiles)
+            ? xbmFiles.GroupBy(x => x.Key).ToDictionary(x => x.Key, x => x.Count())
+            : new Dictionary<ulong, int>();
+        var textures = (xbmFiles ?? [])
+            .GroupBy(x => x.Key)
+            .Select(x => _archiveManager.Lookup(x.Key) is { HasValue: true } found ? found.Value : x.First())
+            .OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
         var total = textures.Count;
         if (startAt > total)
         {
@@ -385,6 +391,7 @@ public partial class MaterialsRepositoryViewModel : DialogWindowViewModel
         {
             var entry = textures[index];
             var number = index + 1;
+            CBitmapTexture? texture = null;
             try
             {
                 _loggerService.Debug($"Texture test #{number}/{total}: {entry.Name}");
@@ -392,7 +399,8 @@ public partial class MaterialsRepositoryViewModel : DialogWindowViewModel
                 using var stream = new MemoryStream();
                 entry.Extract(stream);
                 stream.Seek(0, SeekOrigin.Begin);
-                if (!_parserService.TryReadRed4File(stream, out var file) || file.RootChunk is not CBitmapTexture texture)
+                texture = _parserService.TryReadRed4File(stream, out var file) ? file.RootChunk as CBitmapTexture : null;
+                if (texture is null)
                 {
                     Interlocked.Increment(ref failed);
                     _loggerService.Warning($"Texture test #{number}: {entry.Name} could not be read");
@@ -423,7 +431,7 @@ public partial class MaterialsRepositoryViewModel : DialogWindowViewModel
             catch (Exception ex)
             {
                 Interlocked.Increment(ref failed);
-                _loggerService.Error($"Texture test #{number}: {entry.Name} failed");
+                _loggerService.Error($"Texture test #{number}: {entry.Name} failed ({Describe(entry, texture)})");
                 _loggerService.Error(ex);
             }
             finally
@@ -431,6 +439,24 @@ public partial class MaterialsRepositoryViewModel : DialogWindowViewModel
                 var count = Interlocked.Increment(ref done);
                 _progress.Report(count / (double)(total - startAt + 1));
             }
+        }
+
+        // where the failing copy comes from and how it's set up, to tell a broken file from a missing format
+        string Describe(IGameFile entry, CBitmapTexture? texture)
+        {
+            var text = $"archive {entry.GetArchive().Name}, {copies.GetValueOrDefault(entry.Key, 1)} cop(ies) of this path";
+            if (texture?.Setup is { } setup)
+            {
+                text += $", {texture.Width}x{texture.Height}, compression {setup.Compression}, raw format {setup.RawFormat}, " +
+                        $"gamma {(bool)setup.IsGamma}, group {setup.Group}";
+            }
+
+            if (texture?.RenderTextureResource.RenderResourceBlobPC.Chunk is rendRenderTextureBlobPC blob)
+            {
+                text += $", {blob.TextureData.Buffer.MemSize} data bytes, {blob.Header.TextureInfo.MipCount} mips";
+            }
+
+            return text;
         }
 
         await Task.Run(() =>
