@@ -414,6 +414,8 @@ public partial class MaterialsRepositoryViewModel : DialogWindowViewModel
                         EUncookExtension.jpg => image.SaveToJPEGMemory(),
                         EUncookExtension.tiff => image.SaveToTIFFMemory(),
                         EUncookExtension.png => image.SaveToPNGMemory(),
+                        // cube is only for LUTs (handled above); dds as Generate Materials would refuse it
+                        EUncookExtension.dds or EUncookExtension.cube => image.SaveToDDSMemory(),
                         _ => image.SaveToDDSMemory(),
                     };
                 }
