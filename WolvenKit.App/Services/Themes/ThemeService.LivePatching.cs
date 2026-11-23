@@ -139,7 +139,7 @@ public sealed partial class ThemeService
         }
     }
 
-    // HandyControl's accent keys: its check boxes, toggles, focused borders and primary buttons
+    // HandyControl's accent keys: its check boxes, toggles, focused borders, selected items and primary buttons
     private static readonly string[] s_handyControlAccentKeys = ["PrimaryColor", "PrimaryBrush", "DarkPrimaryColor", "DarkPrimaryBrush"];
 
     /// <summary>
@@ -157,24 +157,36 @@ public sealed partial class ThemeService
         }
 
         var map = BuildColorMap(theme);
+        if (!map.ContainsKey("PrimaryBrush"))
+        {
+            return;
+        }
+
         foreach (var key in s_handyControlAccentKeys)
         {
-            if (!map.TryGetValue(key, out var color))
+            if (map.TryGetValue(key, out var color))
             {
-                continue;
-            }
-
-            if (key.EndsWith("Color", StringComparison.Ordinal))
-            {
-                element.Resources[key] = color;
-            }
-            else
-            {
-                var brush = new SolidColorBrush(color);
-                brush.Freeze();
-                element.Resources[key] = brush;
+                SetColorKey(element, key, color);
             }
         }
+
+        // text and check marks drawn on the accent (selected list item, ticked box): black on a light accent
+        var onAccent = ResolveReadableAccentForeground(theme) ?? Colors.White;
+        SetColorKey(element, "TextIconColor", onAccent);
+        SetColorKey(element, "TextIconBrush", onAccent);
+    }
+
+    private static void SetColorKey(FrameworkElement element, string key, Color color)
+    {
+        if (key.EndsWith("Color", StringComparison.Ordinal))
+        {
+            element.Resources[key] = color;
+            return;
+        }
+
+        var brush = new SolidColorBrush(color);
+        brush.Freeze();
+        element.Resources[key] = brush;
     }
 
     /// <summary>
