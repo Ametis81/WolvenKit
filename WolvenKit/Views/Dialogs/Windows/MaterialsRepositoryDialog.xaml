@@ -128,6 +128,66 @@
                 </Border>
             </Grid>
 
+            <!--  texture test: Generate Materials' texture conversion in memory, to find a texture that crashes it  -->
+            <Grid Margin="{DynamicResource WolvenKitMarginBottom}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition MinWidth="{DynamicResource WolvenKitMaterialsRepositoryButtonWidth}" />
+                    <ColumnDefinition MinWidth="{DynamicResource WolvenKitMaterialsRepositoryComboBoxWidth}" />
+                    <ColumnDefinition Width="6*" />
+                </Grid.ColumnDefinitions>
+
+                <Button
+                    Style="{StaticResource WKButtonStyle}"
+                    x:Name="TestTexturesButton"
+                    Grid.Column="0"
+                    Height="{DynamicResource WolvenKitButtonHeight}"
+                    Margin="{DynamicResource WolvenKitMarginSmallRight}"
+                    HorizontalAlignment="Stretch"
+                    VerticalAlignment="Top"
+                    ToolTip="Converts every texture to the selected format in memory, as Generate Materials does, without writing any file. Each texture is written to the log (Debug) before it's converted: if WolvenKit crashes, the last line of the log names the texture.">
+                    <StackPanel Orientation="Horizontal">
+                        <templates:IconBox
+                            IconPack="Material"
+                            Kind="ImageSearch"
+                            Margin="0"
+                            Size="{DynamicResource WolvenKitIconTiny}"
+                            Foreground="{DynamicResource WolvenKitCyan}" />
+
+                        <TextBlock
+                            Margin="{DynamicResource WolvenKitMarginSmallLeft}"
+                            VerticalAlignment="Center"
+                            Text="Test Textures" />
+                    </StackPanel>
+                </Button>
+
+                <StackPanel
+                    Grid.Column="1"
+                    Margin="{DynamicResource WolvenKitMarginSmallRight}"
+                    VerticalAlignment="Top">
+                    <CheckBox
+                        x:Name="TestParallelCheckBox"
+                        Content="In parallel"
+                        ToolTip="As Generate Materials, on all cores. A crash only in parallel points at memory, not at one texture." />
+                    <DockPanel Margin="{DynamicResource WolvenKitMarginSmallTop}">
+                        <TextBlock
+                            VerticalAlignment="Center"
+                            Text="Start at #" />
+                        <TextBox
+                            x:Name="TestStartAtTextBox"
+                            Margin="{DynamicResource WolvenKitMarginSmallLeft}"
+                            ToolTip="The number of the first texture: after a crash, the number after the one in the last log line" />
+                    </DockPanel>
+                </StackPanel>
+
+                <Border
+                    Grid.Column="2"
+                    Style="{StaticResource BorderTipWarning}">
+                    <TextBlock
+                        Text="For when Generate Materials crashes: writes nothing to disk, logs each texture before converting it. Takes about as long as the texture part of Generate Materials."
+                        TextWrapping="Wrap" />
+                </Border>
+            </Grid>
+
             <Grid Margin="{DynamicResource WolvenKitMarginBottom}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition MinWidth="{DynamicResource WolvenKitMaterialsRepositoryButtonWidth}" />

@@ -32,6 +32,12 @@ namespace WolvenKit.Views.Dialogs.Windows
                    .DisposeWith(disposables);
                 this.BindCommand(ViewModel, x => x.MigrateDepotCommand, x => x.MigrateDepotButton)
                     .DisposeWith(disposables);
+                this.BindCommand(ViewModel, x => x.TestTextureConversionCommand, x => x.TestTexturesButton)
+                    .DisposeWith(disposables);
+                this.Bind(ViewModel, x => x.TestInParallel, x => x.TestParallelCheckBox.IsChecked)
+                    .DisposeWith(disposables);
+                this.Bind(ViewModel, x => x.TestStartAt, x => x.TestStartAtTextBox.Text)
+                    .DisposeWith(disposables);
 
                 this.Bind(ViewModel, x => x.MaterialsDepotPath, x => x.MaterialsTextBox.Text)
                    .DisposeWith(disposables);

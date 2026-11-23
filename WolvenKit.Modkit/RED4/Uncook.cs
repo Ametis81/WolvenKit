@@ -666,7 +666,9 @@ namespace WolvenKit.Modkit.RED4
                 return false;
             }
 
-            var redImage = RedImage.FromXBM(bitmapTexture);
+            // disposed right away: the converted image lives in native memory, which the GC doesn't see, so
+            // thousands of textures (Generate Materials) could run out of memory before finalizers free it
+            using var redImage = RedImage.FromXBM(bitmapTexture);
 
             var destFile = Path.ChangeExtension(outfile.FullName, xbmargs.UncookExtension.ToString());
 
@@ -1357,7 +1359,7 @@ namespace WolvenKit.Modkit.RED4
                 return false;
             }
 
-            var image = RedImage.FromTexArray(cTextureArray);
+            using var image = RedImage.FromTexArray(cTextureArray);
             outStream.Write(image.SaveToDDSMemory());
 
             return true;
@@ -1370,7 +1372,7 @@ namespace WolvenKit.Modkit.RED4
                 return false;
             }
 
-            var image = RedImage.FromEnvProbe(refl);
+            using var image = RedImage.FromEnvProbe(refl);
             outStream.Write(image.SaveToDDSMemory());
 
             return true;
@@ -1383,7 +1385,7 @@ namespace WolvenKit.Modkit.RED4
                 return false;
             }
 
-            var image = RedImage.FromCubeMap(ctex);
+            using var image = RedImage.FromCubeMap(ctex);
             outStream.Write(image.SaveToDDSMemory());
 
             return true;
