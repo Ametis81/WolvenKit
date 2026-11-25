@@ -21,9 +21,7 @@ using WolvenKit.Core.Extensions;
 using WolvenKit.Core.Interfaces;
 using WolvenKit.Core.Services;
 using WolvenKit.RED4.Archive;
-using WolvenKit.RED4.CR2W;
 using WolvenKit.RED4.CR2W.JSON;
-using WolvenKit.RED4.Types;
 using Path = System.IO.Path;
 
 namespace WolvenKit.App.ViewModels.Dialogs;
@@ -39,7 +37,6 @@ public partial class MaterialsRepositoryViewModel : DialogWindowViewModel
     private readonly IProgressService<double> _progress;
     private readonly IModTools _modTools;
     private readonly IArchiveManagerLoader _archiveManagerLoader;
-    private readonly Red4ParserService _parserService;
 
     public MaterialsRepositoryViewModel(
         ISettingsManager settingsManager,
@@ -48,8 +45,7 @@ public partial class MaterialsRepositoryViewModel : DialogWindowViewModel
         IGameControllerFactory gameControllerFactory,
         IProgressService<double> progress,
         IModTools modTools,
-        IArchiveManagerLoader archiveManagerLoader,
-        Red4ParserService parserService)
+        IArchiveManagerLoader archiveManagerLoader)
     {
         _settingsManager = settingsManager;
         _loggerService = loggerService;
@@ -58,7 +54,6 @@ public partial class MaterialsRepositoryViewModel : DialogWindowViewModel
         _progress = progress;
         _modTools = modTools;
         _archiveManagerLoader = archiveManagerLoader;
-        _parserService = parserService;
 
         ArgumentNullException.ThrowIfNull(_settingsManager.MaterialRepositoryPath);
 
@@ -76,12 +71,6 @@ public partial class MaterialsRepositoryViewModel : DialogWindowViewModel
     [ObservableProperty] private string _materialsDepotPath;
     [ObservableProperty] private UncookExtensionViewModel _uncookExtension;
     [ObservableProperty] private List<UncookExtensionViewModel> _uncookExtensions;
-
-    /// <summary>Texture test: convert in parallel like Generate Materials (finds memory trouble), else one by one.</summary>
-    [ObservableProperty] private bool? _testInParallel = false;
-
-    /// <summary>Texture test: the number of the first texture, to go on after a crash.</summary>
-    [ObservableProperty] private string _testStartAt = "1";
 
     public string WikiHelpLink = "https://wiki.redmodding.org/wolvenkit/getting-started/setup";
 
@@ -346,136 +335,6 @@ public partial class MaterialsRepositoryViewModel : DialogWindowViewModel
         _loggerService.Success("Finished Generating Materials!");
 
         OpenDepotFolder();
-    }
-
-    /// <summary>
-    /// Converts every texture (.xbm) of the game like Generate Materials does, in memory only: nothing is written
-    /// to the depot. Each texture is logged (Debug) before it's converted, so when the conversion crashes WolvenKit
-    /// the last line of the log names the texture. One by one that is the culprit; in parallel (as Generate
-    /// Materials) a crash that only happens there points at memory instead.
-    /// </summary>
-    [RelayCommand]
-    private async Task TestTextureConversion()
-    {
-        var parallel = TestInParallel == true;
-        var startAt = int.TryParse(TestStartAt, out var start) && start > 1 ? start : 1;
-        var extension = UncookExtension.Extension;
-
-        await _archiveManagerLoader.LoadArchiveManagerAsync();
-
-        // per path the copy the game (and the Asset Browser) uses; other copies of it are counted for the log
-        var copies = _archiveManager.GetGroupedFiles().TryGetValue(".xbm", out var xbmFiles)
-            ? xbmFiles.GroupBy(x => x.Key).ToDictionary(x => x.Key, x => x.Count())
-            : new Dictionary<ulong, int>();
-        var textures = (xbmFiles ?? [])
-            .GroupBy(x => x.Key)
-            .Select(x => _archiveManager.Lookup(x.Key) is { HasValue: true } found ? found.Value : x.First())
-            .OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-        var total = textures.Count;
-        if (startAt > total)
-        {
-            _loggerService.Warning($"Texture test: there are {total} textures, nothing to start at #{startAt}.");
-            return;
-        }
-
-        _loggerService.Info($"Texture test: converting {total - startAt + 1} of {total} textures to {extension} in memory " +
-                            $"({(parallel ? "in parallel" : "one by one")}, from #{startAt}). Nothing is written to the depot.");
-
-        var done = 0;
-        var failed = 0;
-        var timer = Stopwatch.StartNew();
-        _progress.Report(0);
-
-        void TestOne(int index)
-        {
-            var entry = textures[index];
-            var number = index + 1;
-            CBitmapTexture? texture = null;
-            try
-            {
-                _loggerService.Debug($"Texture test #{number}/{total}: {entry.Name}");
-
-                using var stream = new MemoryStream();
-                entry.Extract(stream);
-                stream.Seek(0, SeekOrigin.Begin);
-                texture = _parserService.TryReadRed4File(stream, out var file) ? file.RootChunk as CBitmapTexture : null;
-                if (texture is null)
-                {
-                    Interlocked.Increment(ref failed);
-                    _loggerService.Warning($"Texture test #{number}: {entry.Name} could not be read");
-                    return;
-                }
-
-                using var image = RedImage.FromXBM(texture);
-                if (texture.Setup.Group == Enums.GpuWrapApieTextureGroup.TEXG_Generic_LUT)
-                {
-                    _ = image.SaveToDDSMemory();
-                }
-                else
-                {
-                    image.FlipV();
-                    _ = extension switch
-                    {
-                        EUncookExtension.tga => image.SaveToTGAMemory(),
-                        EUncookExtension.bmp => image.SaveToBMPMemory(),
-                        EUncookExtension.jpg => image.SaveToJPEGMemory(),
-                        EUncookExtension.tiff => image.SaveToTIFFMemory(),
-                        EUncookExtension.png => image.SaveToPNGMemory(),
-                        // cube is only for LUTs (handled above); dds as Generate Materials would refuse it
-                        EUncookExtension.dds or EUncookExtension.cube => image.SaveToDDSMemory(),
-                        _ => image.SaveToDDSMemory(),
-                    };
-                }
-            }
-            catch (Exception ex)
-            {
-                Interlocked.Increment(ref failed);
-                _loggerService.Error($"Texture test #{number}: {entry.Name} failed ({Describe(entry, texture)})");
-                _loggerService.Error(ex);
-            }
-            finally
-            {
-                var count = Interlocked.Increment(ref done);
-                _progress.Report(count / (double)(total - startAt + 1));
-            }
-        }
-
-        // where the failing copy comes from and how it's set up, to tell a broken file from a missing format
-        string Describe(IGameFile entry, CBitmapTexture? texture)
-        {
-            var text = $"archive {entry.GetArchive().Name}, {copies.GetValueOrDefault(entry.Key, 1)} cop(ies) of this path";
-            if (texture?.Setup is { } setup)
-            {
-                text += $", {texture.Width}x{texture.Height}, compression {setup.Compression}, raw format {setup.RawFormat}, " +
-                        $"gamma {(bool)setup.IsGamma}, group {setup.Group}";
-            }
-
-            if (texture?.RenderTextureResource.RenderResourceBlobPC.Chunk is rendRenderTextureBlobPC blob)
-            {
-                text += $", {blob.TextureData.Buffer.MemSize} data bytes, {blob.Header.TextureInfo.MipCount} mips";
-            }
-
-            return text;
-        }
-
-        await Task.Run(() =>
-        {
-            if (parallel)
-            {
-                Parallel.For(startAt - 1, total, _parallelOptions, TestOne);
-            }
-            else
-            {
-                for (var i = startAt - 1; i < total; i++)
-                {
-                    TestOne(i);
-                }
-            }
-        });
-
-        _progress.Completed();
-        _loggerService.Success($"Texture test: {done} textures converted in {timer.Elapsed:hh\\:mm\\:ss}, {failed} failed.");
     }
 
     [RelayCommand]

@@ -668,6 +668,8 @@ namespace WolvenKit.Modkit.RED4
 
             // disposed right away: the converted image lives in native memory, which the GC doesn't see, so
             // thousands of textures (Generate Materials) could run out of memory before finalizers free it
+            // waits while other textures being converted take too much memory (#3260)
+            using var memory = TextureMemoryGate.Enter(TextureMemoryGate.Estimate(bitmapTexture));
             using var redImage = RedImage.FromXBM(bitmapTexture);
 
             var destFile = Path.ChangeExtension(outfile.FullName, xbmargs.UncookExtension.ToString());
@@ -1359,6 +1361,9 @@ namespace WolvenKit.Modkit.RED4
                 return false;
             }
 
+            using var memory = cTextureArray.RenderTextureResource.RenderResourceBlobPC.Chunk is rendRenderTextureBlobPC arrayBlob
+                ? TextureMemoryGate.Enter(TextureMemoryGate.Estimate(arrayBlob))
+                : null;
             using var image = RedImage.FromTexArray(cTextureArray);
             outStream.Write(image.SaveToDDSMemory());
 
@@ -1372,6 +1377,9 @@ namespace WolvenKit.Modkit.RED4
                 return false;
             }
 
+            using var memory = refl.TextureData.RenderResourceBlobPC.Chunk is rendRenderTextureBlobPC probeBlob
+                ? TextureMemoryGate.Enter(TextureMemoryGate.Estimate(probeBlob))
+                : null;
             using var image = RedImage.FromEnvProbe(refl);
             outStream.Write(image.SaveToDDSMemory());
 
@@ -1385,6 +1393,9 @@ namespace WolvenKit.Modkit.RED4
                 return false;
             }
 
+            using var memory = ctex.RenderTextureResource.RenderResourceBlobPC.Chunk is rendRenderTextureBlobPC cubeBlob
+                ? TextureMemoryGate.Enter(TextureMemoryGate.Estimate(cubeBlob))
+                : null;
             using var image = RedImage.FromCubeMap(ctex);
             outStream.Write(image.SaveToDDSMemory());
 
