@@ -146,6 +146,12 @@ public partial class RedPackageReader : IBufferReader
 
         foreach (var (index, handles) in _handles)
         {
+            // null handles (pointer 0 in the file, -1 here) point at no chunk and stay empty
+            if (index < 0)
+            {
+                continue;
+            }
+
             _chunks[index].IsUsed = true;
 
             foreach (var handle in handles)
