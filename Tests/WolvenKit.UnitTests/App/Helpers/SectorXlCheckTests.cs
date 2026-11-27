@@ -78,4 +78,80 @@ public class SectorXlCheckTests
         rows.Add(Row(3, "worldStaticMeshNode"));
         Assert.True(SectorXlCheck.Check(block, rows).SectorRejected);
     }
+
+    private const string XlEdgeCases = """
+        streaming:
+          sectors:
+            - path: base\worlds\edge.streamingsector
+              expectedNodes: 4
+              nodeDeletions:
+                - index: 0
+                  type: worldInstancedMeshNode
+                  instanceDeletions: [0]
+                - index: 1
+                  type: worldStaticMeshNode
+                  expectedInstances: 2
+                  instanceDeletions: [5]
+                - index: 2
+                  type: worldCollisionNode
+                  expectedActors: 2
+                  actorDeletions: [[1, 0], [0, 1, 2]]
+              nodeMutations:
+                - index: 3
+                  type: worldInstancedMeshNode
+                  position: [1, 2, 3]
+                  expectedInstances: 3
+                  instanceMutations:
+                    - index: 0
+                      position: [1, 2, 3, 0]
+                    - index: 9
+                      position: [1, 2, 3, 0]
+                - index: 0
+                  type: worldInstancedMeshNode
+                  scale: [1, 1]
+        """;
+
+    [Fact]
+    public void Removals_DropSinglesLikeArchiveXl()
+    {
+        var deletions = SectorXlCheck.Parse(XlEdgeCases)[0].Deletions;
+
+        // no expectedInstances: whole node
+        Assert.Equal(-1, deletions[0].ExpectedElements);
+        // index out of range: whole node
+        Assert.Equal(-1, deletions[1].ExpectedElements);
+        // a pair needs exactly two numbers: whole node
+        Assert.Equal(-1, deletions[2].ExpectedElements);
+    }
+
+    [Fact]
+    public void Mutations_SkipInvalidSinglesOnly()
+    {
+        var mutations = SectorXlCheck.Parse(XlEdgeCases)[0].Mutations;
+
+        Assert.Equal(SectorElementKind.Instance, mutations[0].ElementKind);
+        Assert.Equal(new[] { 0 }, mutations[0].Elements);
+        Assert.Contains("1 single instance mutation", mutations[0].ParseProblem, StringComparison.Ordinal);
+        Assert.Contains("malformed scale", mutations[1].ParseProblem, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Check_TypeFirst_WholeNodeRemovalOnlyForTheRightClass()
+    {
+        var block = SectorXlCheck.Parse(XlEdgeCases)[0];
+        var rows = new List<SectorObject>
+        {
+            Row(0, "worldInstancedMeshNode", SectorElementKind.Instance, 3),
+            Row(1, "worldInstancedMeshNode", SectorElementKind.Instance, 2), // another class than the file says
+            Row(2, "worldCollisionNode", SectorElementKind.Actor, 2),
+            Row(3, "worldInstancedMeshNode", SectorElementKind.Instance, 3),
+        };
+
+        var result = SectorXlCheck.Check(block, rows);
+
+        Assert.Equal(new[] { 0, 2 }, result.Valid.Keys.Order());
+        Assert.Empty(result.Valid[0].Elements);
+        Assert.Contains("the file expects worldStaticMeshNode", result.RowProblems[1], StringComparison.Ordinal);
+        Assert.Contains("ArchiveXL skips them", result.RowProblems[3], StringComparison.Ordinal);
+    }
 }
